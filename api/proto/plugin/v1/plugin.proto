@@ -1,0 +1,440 @@
+syntax = "proto3";
+
+package weknora.plugin.v1;
+
+option go_package = "github.com/Tencent/WeKnora/api/proto/plugin/v1;pluginv1";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// PluginLifecycle is implemented by every plugin. The runtime also exposes
+// this service as a proxy and selects the target from context.plugin_id.
+service PluginLifecycle {
+  rpc Handshake(HandshakeRequest) returns (HandshakeResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc ValidateConfig(ValidateConfigRequest) returns (ValidateConfigResponse);
+}
+
+// DataSourcePlugin converts source-specific objects into a common document
+// event stream. A document is transferred as begin -> chunk* -> end so large
+// files never depend on the gRPC unary message limit.
+service DataSourcePlugin {
+  rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+  rpc ResolveResourceAncestors(ResolveResourceAncestorsRequest)
+      returns (ResolveResourceAncestorsResponse);
+  rpc Sync(DataSourceSyncRequest) returns (stream DataSourceSyncEvent);
+}
+
+// DocumentParserPlugin is the extension point for out-of-process parsers.
+// The first request frame must be ParseBegin, followed by zero or more chunks.
+service DocumentParserPlugin {
+  rpc Parse(stream ParseRequest) returns (stream ParseEvent);
+}
+
+// WebSearchPlugin is the extension point for external search engines.
+service WebSearchPlugin {
+  rpc Search(WebSearchRequest) returns (WebSearchResponse);
+}
+
+// ModelProviderPlugin keeps each model capability explicit. A provider only
+// advertises and implements capabilities listed in its manifest.
+service ModelProviderPlugin {
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+  rpc Chat(ChatRequest) returns (stream ChatEvent);
+  rpc Embed(EmbedRequest) returns (EmbedResponse);
+  rpc Rerank(RerankRequest) returns (RerankResponse);
+}
+
+// PluginRuntime owns container lifecycle. WeKnora talks to this service and
+// never mounts or calls the Docker socket itself.
+service PluginRuntime {
+  rpc Install(InstallPluginRequest) returns (PluginRuntimeStatus);
+  rpc Upgrade(UpgradePluginRequest) returns (PluginRuntimeStatus);
+  rpc Start(PluginTargetRequest) returns (PluginRuntimeStatus);
+  rpc Stop(PluginTargetRequest) returns (PluginRuntimeStatus);
+  rpc Uninstall(PluginTargetRequest) returns (google.protobuf.Empty);
+  rpc GetStatus(PluginTargetRequest) returns (PluginRuntimeStatus);
+  rpc ListStatuses(google.protobuf.Empty) returns (ListPluginStatusesResponse);
+  rpc WatchEvents(WatchRuntimeEventsRequest) returns (stream RuntimeEvent);
+}
+
+enum PluginType {
+  PLUGIN_TYPE_UNSPECIFIED = 0;
+  PLUGIN_TYPE_DATA_SOURCE = 1;
+  PLUGIN_TYPE_DOCUMENT_PARSER = 2;
+  PLUGIN_TYPE_WEB_SEARCH = 3;
+  PLUGIN_TYPE_MODEL_PROVIDER = 4;
+}
+
+enum DataAccess {
+  DATA_ACCESS_UNSPECIFIED = 0;
+  DATA_ACCESS_DOCUMENT_CONTENT = 1;
+  DATA_ACCESS_DOCUMENT_METADATA = 2;
+  DATA_ACCESS_QUERY_TEXT = 3;
+  DATA_ACCESS_CONVERSATION = 4;
+}
+
+message PluginManifest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string version = 4;
+  string protocol_version = 5;
+  string weknora_version_constraint = 6;
+  string image = 7;
+  repeated PluginType types = 8;
+  repeated string capabilities = 9;
+  ConfigSchema config = 10;
+  PluginPermissions permissions = 11;
+  google.protobuf.Duration default_timeout = 12;
+  string connector_type = 13;
+  string icon = 14;
+}
+
+message ConfigSchema {
+  // JSON Schema Draft 2020-12 document. Keeping it as JSON preserves schema
+  // features without duplicating JSON Schema in Protobuf messages.
+  string json_schema = 1;
+  repeated string secret_fields = 2;
+}
+
+message PluginPermissions {
+  bool network = 1;
+  repeated string allowed_hosts = 2;
+  repeated DataAccess data_access = 3;
+}
+
+message InvocationContext {
+  string plugin_id = 1;
+  uint64 tenant_id = 2;
+  string instance_id = 3;
+  string request_id = 4;
+}
+
+message HandshakeRequest {
+  InvocationContext context = 1;
+  string host_protocol_version = 2;
+  string host_version = 3;
+}
+
+message HandshakeResponse {
+  PluginManifest manifest = 1;
+  string negotiated_protocol_version = 2;
+}
+
+message HealthCheckRequest {
+  InvocationContext context = 1;
+}
+
+message HealthCheckResponse {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_SERVING = 1;
+    STATUS_DEGRADED = 2;
+    STATUS_NOT_SERVING = 3;
+  }
+
+  Status status = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}
+
+message ValidateConfigRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+}
+
+message ValidateConfigResponse {
+  bool valid = 1;
+  repeated FieldViolation violations = 2;
+}
+
+message FieldViolation {
+  string field = 1;
+  string description = 2;
+}
+
+message ListResourcesRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  string parent_id = 3;
+}
+
+message ListResourcesResponse {
+  repeated Resource resources = 1;
+}
+
+message ResolveResourceAncestorsRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  repeated string resource_ids = 3;
+}
+
+message ResolveResourceAncestorsResponse {
+  repeated string ancestor_ids = 1;
+}
+
+message Resource {
+  string external_id = 1;
+  string name = 2;
+  string type = 3;
+  string description = 4;
+  string url = 5;
+  google.protobuf.Timestamp modified_at = 6;
+  string parent_id = 7;
+  bool has_children = 8;
+  map<string, string> metadata = 9;
+}
+
+message DataSourceSyncRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  repeated string resource_ids = 3;
+  bytes cursor_json = 4;
+  bool full = 5;
+}
+
+message DataSourceSyncEvent {
+  oneof event {
+    DocumentBegin document_begin = 1;
+    DocumentChunk document_chunk = 2;
+    DocumentEnd document_end = 3;
+    DeleteDocument delete_document = 4;
+    CursorCheckpoint checkpoint = 5;
+    SyncWarning warning = 6;
+  }
+}
+
+message DocumentBegin {
+  string external_id = 1;
+  string title = 2;
+  string file_name = 3;
+  string content_type = 4;
+  string url = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  map<string, string> metadata = 7;
+  string source_resource_id = 8;
+  int64 content_size = 9;
+}
+
+message DocumentChunk {
+  string external_id = 1;
+  uint32 sequence = 2;
+  bytes data = 3;
+}
+
+message DocumentEnd {
+  string external_id = 1;
+  string sha256 = 2;
+}
+
+message DeleteDocument {
+  string external_id = 1;
+  string title = 2;
+  string source_resource_id = 3;
+  map<string, string> metadata = 4;
+}
+
+message CursorCheckpoint {
+  // Plugin-owned opaque JSON. The host persists and returns it unchanged.
+  bytes cursor_json = 1;
+}
+
+message SyncWarning {
+  string code = 1;
+  string message = 2;
+  string external_id = 3;
+}
+
+message ParseRequest {
+  InvocationContext context = 1;
+  oneof frame {
+    ParseBegin begin = 2;
+    bytes content_chunk = 3;
+  }
+}
+
+message ParseBegin {
+  bytes config_json = 1;
+  string file_name = 2;
+  string content_type = 3;
+  int64 content_size = 4;
+}
+
+message ParseEvent {
+  oneof event {
+    ParseMetadata metadata = 1;
+    string markdown_chunk = 2;
+    ParsedAttachment attachment = 3;
+  }
+}
+
+message ParseMetadata {
+  string title = 1;
+  map<string, string> values = 2;
+}
+
+message ParsedAttachment {
+  string file_name = 1;
+  string content_type = 2;
+  bytes content = 3;
+}
+
+message WebSearchRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  string query = 3;
+  string language = 4;
+  uint32 limit = 5;
+  string page_token = 6;
+}
+
+message WebSearchResponse {
+  repeated WebSearchResult results = 1;
+  string next_page_token = 2;
+}
+
+message WebSearchResult {
+  string title = 1;
+  string url = 2;
+  string snippet = 3;
+  string source = 4;
+  google.protobuf.Timestamp published_at = 5;
+  map<string, string> metadata = 6;
+}
+
+enum ModelCapability {
+  MODEL_CAPABILITY_UNSPECIFIED = 0;
+  MODEL_CAPABILITY_CHAT = 1;
+  MODEL_CAPABILITY_EMBEDDING = 2;
+  MODEL_CAPABILITY_RERANK = 3;
+}
+
+message ListModelsRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+}
+
+message ListModelsResponse {
+  repeated PluginModel models = 1;
+}
+
+message PluginModel {
+  string id = 1;
+  string name = 2;
+  repeated ModelCapability capabilities = 3;
+  map<string, string> metadata = 4;
+}
+
+message ChatRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  string model = 3;
+  repeated ChatMessage messages = 4;
+  map<string, string> options = 5;
+}
+
+message ChatMessage {
+  string role = 1;
+  string content = 2;
+}
+
+message ChatEvent {
+  string content_delta = 1;
+  bool done = 2;
+  ModelUsage usage = 3;
+}
+
+message EmbedRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  string model = 3;
+  repeated string inputs = 4;
+}
+
+message EmbedResponse {
+  repeated Embedding embeddings = 1;
+  ModelUsage usage = 2;
+}
+
+message Embedding {
+  repeated float values = 1;
+}
+
+message RerankRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  string model = 3;
+  string query = 4;
+  repeated string documents = 5;
+  uint32 top_n = 6;
+}
+
+message RerankResponse {
+  repeated RerankResult results = 1;
+  ModelUsage usage = 2;
+}
+
+message RerankResult {
+  uint32 index = 1;
+  float score = 2;
+}
+
+message ModelUsage {
+  uint64 input_tokens = 1;
+  uint64 output_tokens = 2;
+}
+
+message InstallPluginRequest {
+  PluginManifest manifest = 1;
+  string image = 2;
+  google.protobuf.Duration call_timeout = 3;
+}
+
+message UpgradePluginRequest {
+  PluginManifest manifest = 1;
+  string image = 2;
+  google.protobuf.Duration call_timeout = 3;
+}
+
+message PluginTargetRequest {
+  string plugin_id = 1;
+}
+
+enum RuntimeState {
+  RUNTIME_STATE_UNSPECIFIED = 0;
+  RUNTIME_STATE_INSTALLING = 1;
+  RUNTIME_STATE_STOPPED = 2;
+  RUNTIME_STATE_STARTING = 3;
+  RUNTIME_STATE_RUNNING = 4;
+  RUNTIME_STATE_UNHEALTHY = 5;
+  RUNTIME_STATE_ERROR = 6;
+}
+
+message PluginRuntimeStatus {
+  string plugin_id = 1;
+  string version = 2;
+  string image = 3;
+  string image_digest = 4;
+  RuntimeState state = 5;
+  string message = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ListPluginStatusesResponse {
+  repeated PluginRuntimeStatus statuses = 1;
+}
+
+message WatchRuntimeEventsRequest {
+  uint64 after_sequence = 1;
+}
+
+message RuntimeEvent {
+  uint64 sequence = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+  string plugin_id = 3;
+  string kind = 4;
+  string message = 5;
+  map<string, string> details = 6;
+}

@@ -1,0 +1,37 @@
+apiVersion: weknora.io/v1
+kind: Plugin
+metadata:
+  id: io.weknora.datasource.example
+  name: 示例数据源
+  description: WeKnora 外部数据源插件最小模板
+  version: 0.1.0
+spec:
+  protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
+  image: ghcr.io/your-org/weknora-example-source-plugin:0.1.0
+  types:
+    - data_source
+  capabilities:
+    - incremental
+    - deletion_sync
+  connectorType: external_example
+  icon: database
+  defaultTimeout: 2m
+  config:
+    schema:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      type: object
+      additionalProperties: false
+      properties:
+        endpoint:
+          type: string
+          title: 服务地址
+      required:
+        - endpoint
+    secretFields: []
+  permissions:
+    network: false
+    allowedHosts: []
+    dataAccess:
+      - document_content
+      - document_metadata

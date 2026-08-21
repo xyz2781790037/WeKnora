@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend docs install-swagger build-lite run-lite package-lite
+.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend docs plugin-proto install-swagger build-lite run-lite package-lite
 
 # Show help
 help:
@@ -40,6 +40,7 @@ help:
 	@echo "  lint              代码检查"
 	@echo "  deps              安装依赖"
 	@echo "  docs              生成 Swagger API 文档"
+	@echo "  plugin-proto      生成插件协议 Go 代码"
 	@echo "  install-swagger   安装 swag 工具"
 	@echo ""
 	@echo "环境检查:"
@@ -216,6 +217,10 @@ docs:
 	@echo "文档已生成到 ./docs 目录"
 	@echo "启动服务后访问 http://localhost:8080/swagger/index.html 查看文档"
 
+# Generate the public plugin protocol bindings used by WeKnora and external plugins.
+plugin-proto:
+	@sh ./scripts/generate_plugin_proto.sh
+
 # Install swagger tool
 install-swagger:
 	go install github.com/swaggo/swag/cmd/swag@latest
@@ -331,5 +336,4 @@ dev-app:
 
 dev-frontend:
 	./scripts/dev.sh frontend
-
 
