@@ -2,6 +2,7 @@ package web_search
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/Tencent/WeKnora/internal/types"
@@ -42,4 +43,18 @@ func (r *Registry) CreateProvider(providerType string, params types.WebSearchPro
 		return nil, fmt.Errorf("web search provider type %s not registered", providerType)
 	}
 	return factory(params)
+}
+
+// List returns all registered provider type IDs in stable order. It exposes
+// catalog metadata only; tenant credentials and provider instances remain in
+// the existing web-search service.
+func (r *Registry) List() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make([]string, 0, len(r.factories))
+	for id := range r.factories {
+		result = append(result, id)
+	}
+	sort.Strings(result)
+	return result
 }

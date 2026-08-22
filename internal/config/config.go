@@ -27,6 +27,7 @@ type Config struct {
 	Models          []ModelConfig          `yaml:"models"           json:"models"`
 	VectorDatabase  *VectorDatabaseConfig  `yaml:"vector_database"  json:"vector_database"`
 	DocReader       *DocReaderConfig       `yaml:"docreader"        json:"docreader"`
+	PluginRuntime   *PluginRuntimeConfig   `yaml:"plugin_runtime"   json:"plugin_runtime"`
 	StreamManager   *StreamManagerConfig   `yaml:"stream_manager"   json:"stream_manager"`
 	ExtractManager  *ExtractManagerConfig  `yaml:"extract"          json:"extract"`
 	WebSearch       *WebSearchConfig       `yaml:"web_search"       json:"web_search"`
@@ -84,6 +85,16 @@ type DocReaderConfig struct {
 	Addr string `yaml:"addr" json:"addr"`
 	// Transport: "grpc" (default) or "http"
 	Transport string `yaml:"transport" json:"transport"`
+}
+
+// PluginRuntimeConfig configures the isolated external-plugin supervisor.
+// It is optional and disabled by default so existing non-Docker deployments
+// retain their current startup behavior.
+type PluginRuntimeConfig struct {
+	Enabled     bool          `yaml:"enabled" json:"enabled"`
+	Addr        string        `yaml:"addr" json:"addr"`
+	DialTimeout time.Duration `yaml:"dial_timeout" json:"dial_timeout"`
+	AuthToken   string        `yaml:"-" json:"-"`
 }
 
 type VectorDatabaseConfig struct {
@@ -580,6 +591,7 @@ func LoadConfig() (*Config, error) {
 	applyOIDCEnvOverrides(&cfg)
 	applyAgentEnvOverrides(&cfg)
 	applyKnowledgeBaseEnvOverrides(&cfg)
+	applyPluginRuntimeEnvOverrides(&cfg)
 	applyAuthAndTenantDefaults(&cfg)
 	applyAuditDefaults(&cfg)
 
@@ -764,6 +776,30 @@ func applyKnowledgeBaseEnvOverrides(cfg *Config) {
 		if d, err := time.ParseDuration(value); err == nil && d > 0 {
 			cfg.KnowledgeBase.DocReaderCallTimeout = d
 		}
+	}
+}
+
+func applyPluginRuntimeEnvOverrides(cfg *Config) {
+	if cfg.PluginRuntime == nil {
+		cfg.PluginRuntime = &PluginRuntimeConfig{}
+	}
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_PLUGIN_RUNTIME_ENABLED")); value != "" {
+		cfg.PluginRuntime.Enabled = strings.EqualFold(value, "true")
+	}
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_PLUGIN_RUNTIME_ADDR")); value != "" {
+		cfg.PluginRuntime.Addr = value
+	}
+	cfg.PluginRuntime.AuthToken = strings.TrimSpace(os.Getenv("WEKNORA_PLUGIN_RUNTIME_AUTH_TOKEN"))
+	if cfg.PluginRuntime.Addr == "" {
+		cfg.PluginRuntime.Addr = "127.0.0.1:9091"
+	}
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_PLUGIN_RUNTIME_DIAL_TIMEOUT")); value != "" {
+		if d, err := time.ParseDuration(value); err == nil && d > 0 {
+			cfg.PluginRuntime.DialTimeout = d
+		}
+	}
+	if cfg.PluginRuntime.DialTimeout <= 0 {
+		cfg.PluginRuntime.DialTimeout = 5 * time.Second
 	}
 }
 
