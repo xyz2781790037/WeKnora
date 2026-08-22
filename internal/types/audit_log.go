@@ -136,6 +136,16 @@ const (
 	// detail payload records the queue and how many records were removed.
 	AuditActionSystemQueueArchivedPurged AuditAction = "system.queue_archived_purged"
 
+	// External plugin lifecycle and sandbox enforcement are platform-wide.
+	// Their audit rows use tenant_id=0 and never include plugin configuration
+	// values because manifests may identify secret fields.
+	AuditActionPluginInstalled     AuditAction = "plugin.installed"
+	AuditActionPluginUpgraded      AuditAction = "plugin.upgraded"
+	AuditActionPluginEnabled       AuditAction = "plugin.enabled"
+	AuditActionPluginDisabled      AuditAction = "plugin.disabled"
+	AuditActionPluginUninstalled   AuditAction = "plugin.uninstalled"
+	AuditActionPluginNetworkDenied AuditAction = "plugin.network_denied"
+
 	// Knowledge-base activity actions. These rows use scope_type=knowledge_base
 	// and scope_id=<kb id>; TargetType/TargetID identify the concrete child
 	// resource when the operation is about a document, tag, data source, or share.

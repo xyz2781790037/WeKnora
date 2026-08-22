@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS plugins;
 DROP TABLE IF EXISTS tenants;
 DROP TABLE IF EXISTS models;
 DROP TABLE IF EXISTS knowledge_bases;
@@ -20,6 +21,38 @@ CREATE TABLE tenants (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 AUTO_INCREMENT=10000;
+
+CREATE TABLE plugins (
+    id VARCHAR(191) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    protocol_version VARCHAR(64) NOT NULL,
+    we_knora_version_constraint VARCHAR(128) NOT NULL DEFAULT '',
+    image TEXT NOT NULL,
+    image_digest VARCHAR(255) NOT NULL DEFAULT '',
+    origin VARCHAR(16) NOT NULL DEFAULT 'external',
+    types JSON NOT NULL,
+    capabilities JSON NOT NULL,
+    connector_type VARCHAR(64) NOT NULL DEFAULT '',
+    connector_type_unique VARCHAR(64)
+        GENERATED ALWAYS AS (NULLIF(connector_type, '')) STORED,
+    manifest JSON NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'disabled',
+    runtime_state VARCHAR(16) NOT NULL DEFAULT 'unknown',
+    health_message TEXT NOT NULL,
+    last_health_at TIMESTAMP NULL DEFAULT NULL,
+    call_timeout_seconds INTEGER NOT NULL DEFAULT 120,
+    installed_by VARCHAR(36) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT chk_plugins_origin CHECK (origin IN ('builtin', 'external')),
+    CONSTRAINT chk_plugins_status CHECK (status IN ('disabled', 'enabled', 'error')),
+    CONSTRAINT chk_plugins_timeout CHECK (call_timeout_seconds > 0),
+    UNIQUE KEY idx_plugins_connector_type (connector_type_unique),
+    KEY idx_plugins_origin (origin),
+    KEY idx_plugins_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE models (
     id VARCHAR(64) PRIMARY KEY,

@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS plugins;
 DROP TABLE IF EXISTS tenant_invitations;
 DROP TABLE IF EXISTS tenant_api_keys;
 DROP TABLE IF EXISTS wiki_page_revisions;
