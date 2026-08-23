@@ -46,6 +46,7 @@ cmd/desktop/build/bin/
 
 # 本地数据 / 模型文件
 /models/
+.local-data/
 data/files/
 data/*.db
 data/*.db-wal
@@ -62,6 +63,7 @@ test/data/mswag.txt
 *_secret
 
 # 大的归档/压缩包
+*.docx
 packages/protoc-*.zip
 !packages/protoc-*-linux-x86_64.zip
 !packages/protoc-*-linux-aarch_64.zip

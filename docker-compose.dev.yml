@@ -35,6 +35,35 @@ services:
     networks:
       - WeKnora-network-dev
 
+  plugin-runtime:
+    image: wechatopenai/weknora-plugin-runtime:${WEKNORA_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.plugin-runtime
+      args:
+        - GOPROXY_ARG=${GOPROXY:-https://proxy.golang.org,direct}
+    container_name: WeKnora-plugin-runtime-dev
+    ports:
+      - "127.0.0.1:${PLUGIN_RUNTIME_PORT:-9092}:9091"
+    environment:
+      - WEKNORA_PLUGIN_RUNTIME_AUTH_TOKEN=${WEKNORA_PLUGIN_RUNTIME_AUTH_TOKEN:-}
+      - WEKNORA_PLUGIN_IMAGE_PULL_POLICY=${WEKNORA_PLUGIN_IMAGE_PULL_POLICY:-always}
+      - WEKNORA_PLUGIN_RUNTIME_LISTEN=:9091
+      - WEKNORA_PLUGIN_PROXY_LISTEN=:18080
+      - WEKNORA_PLUGIN_PROXY_URL=http://plugin-runtime:18080
+      - WEKNORA_PLUGIN_SANDBOX_NETWORK=WeKnora-plugin-sandbox-dev
+      - WEKNORA_PLUGIN_RUNTIME_DNS_NAME=plugin-runtime
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - plugin-runtime-data-dev:/var/lib/weknora-plugin-runtime
+    networks:
+      - WeKnora-network-dev
+      - WeKnora-plugin-sandbox-dev
+    restart: unless-stopped
+    profiles:
+      - plugins
+      - full
+
   # See docker-compose.yml searxng-init for rationale (avoid in-place rewrite of
   # the repo-tracked settings.yml by the searxng entrypoint).
   searxng-init:
@@ -571,6 +600,10 @@ services:
 networks:
   WeKnora-network-dev:
     driver: bridge
+  WeKnora-plugin-sandbox-dev:
+    name: WeKnora-plugin-sandbox-dev
+    driver: bridge
+    internal: true
 
 volumes:
   postgres-data-dev:
@@ -585,3 +618,4 @@ volumes:
   langfuse_clickhouse_logs_dev:
   langfuse_minio_data_dev:
   searxng_config_dev:
+  plugin-runtime-data-dev:
