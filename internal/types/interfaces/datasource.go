@@ -43,6 +43,11 @@ type DataSourceService interface {
 	// This is used by the frontend "Test Connection" button before creating a data source.
 	ValidateCredentials(ctx context.Context, connectorType string, credentials map[string]interface{}) error
 
+	// ValidateDataSourceConfig validates a complete transient configuration
+	// without creating or updating a data source row. External plugins use the
+	// settings and credentials together as their JSON-Schema configuration.
+	ValidateDataSourceConfig(ctx context.Context, config *types.DataSourceConfig) error
+
 	// ListAvailableResources lists resources available for sync in the external system.
 	// parentID enables lazy loading: "" lists the top level, a resource ExternalID lists its children.
 	ListAvailableResources(ctx context.Context, dsID string, parentID string) ([]types.Resource, error)

@@ -235,6 +235,11 @@ type DataSourceConfig struct {
 	// ingesting an image into a KB without VLM is rejected, so image extraction is
 	// skipped when this is false.
 	MultimodalEnabled bool `json:"-"`
+
+	// Invocation identity is populated by DataSourceService for external
+	// plugins. It is never persisted or exposed to connector configuration.
+	TenantID   uint64 `json:"-"`
+	InstanceID string `json:"-"`
 }
 
 // HasCredentials reports whether the credentials map carries any value at

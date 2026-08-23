@@ -84,6 +84,8 @@ import (
 	"github.com/Tencent/WeKnora/internal/models/embedding"
 	"github.com/Tencent/WeKnora/internal/models/limiter"
 	"github.com/Tencent/WeKnora/internal/models/utils/ollama"
+	pluginintegration "github.com/Tencent/WeKnora/internal/plugin"
+	"github.com/Tencent/WeKnora/internal/plugin/runtimeclient"
 	"github.com/Tencent/WeKnora/internal/router"
 	"github.com/Tencent/WeKnora/internal/storageallowlist"
 	"github.com/Tencent/WeKnora/internal/stream"
@@ -175,6 +177,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewWebSearchStateService))
 	must(container.Provide(repository.NewDataSourceRepository))
 	must(container.Provide(repository.NewSyncLogRepository))
+	must(container.Provide(repository.NewPluginRepository))
 	must(container.Provide(repository.NewWikiPageRepository))
 	must(container.Provide(repository.NewMemoryRepository))
 	must(container.Provide(repository.NewTaskPendingOpsRepository))
@@ -345,6 +348,11 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	// Data source sync framework
 	logger.Debugf(ctx, "[Container] Registering data source sync framework...")
 	must(container.Provide(initConnectorRegistry))
+	must(container.Provide(initPluginRuntimeGateway))
+	must(container.Provide(pluginintegration.NewRegistrar))
+	must(container.Provide(service.NewPluginService))
+	must(container.Invoke(restoreEnabledPlugins))
+	must(container.Invoke(pluginintegration.StartAuditSubscriber))
 	must(container.Provide(datasource.NewScheduler))
 	must(container.Provide(service.NewDataSourceService))
 	must(container.Invoke(startDataSourceScheduler))
@@ -394,6 +402,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewInitializationHandler))
 	must(container.Provide(handler.NewAuthHandler))
 	must(container.Provide(handler.NewSystemHandler))
+	must(container.Provide(handler.NewPluginHandler))
 	must(container.Provide(handler.NewMCPServiceHandler))
 	must(container.Provide(handler.NewMCPCredentialsHandler))
 	must(container.Provide(handler.NewMCPOAuthHandler))
@@ -1681,6 +1690,26 @@ func initConnectorRegistry() (*datasource.ConnectorRegistry, error) {
 		return nil, errs
 	}
 	return registry, nil
+}
+
+func initPluginRuntimeGateway(
+	cfg *config.Config,
+	cleaner interfaces.ResourceCleaner,
+) (runtimeclient.Gateway, error) {
+	client, err := runtimeclient.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	cleaner.RegisterWithName("PluginRuntimeClient", client.Close)
+	return client, nil
+}
+
+func restoreEnabledPlugins(registrar interfaces.PluginRegistrar) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	if err := registrar.RestoreEnabled(ctx); err != nil {
+		logger.Warnf(context.Background(), "[Container] some enabled plugins could not be restored: %v", err)
+	}
 }
 
 // startDataSourceScheduler starts the data source cron scheduler and registers cleanup.

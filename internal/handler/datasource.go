@@ -16,16 +16,19 @@ import (
 type DataSourceHandler struct {
 	service   interfaces.DataSourceService
 	kbService interfaces.KnowledgeBaseService
+	registry  *datasource.ConnectorRegistry
 }
 
 // NewDataSourceHandler creates a new data source handler
 func NewDataSourceHandler(
 	service interfaces.DataSourceService,
 	kbService interfaces.KnowledgeBaseService,
+	registry *datasource.ConnectorRegistry,
 ) *DataSourceHandler {
 	return &DataSourceHandler{
 		service:   service,
 		kbService: kbService,
+		registry:  registry,
 	}
 }
 
@@ -316,14 +319,22 @@ func (h *DataSourceHandler) ValidateCredentials(c *gin.Context) {
 
 	var req struct {
 		Type        string                 `json:"type" binding:"required"`
-		Credentials map[string]interface{} `json:"credentials" binding:"required"`
+		Credentials map[string]interface{} `json:"credentials"`
+		Settings    map[string]interface{} `json:"settings"`
+		ResourceIDs []string               `json:"resource_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: type and credentials are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: type is required"})
 		return
 	}
 
-	if err := h.service.ValidateCredentials(ctx, req.Type, req.Credentials); err != nil {
+	if err := h.service.ValidateDataSourceConfig(ctx, &types.DataSourceConfig{
+		Type:        req.Type,
+		Credentials: req.Credentials,
+		Settings:    req.Settings,
+		ResourceIDs: req.ResourceIDs,
+		TenantID:    tenantID,
+	}); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -607,6 +618,6 @@ func (h *DataSourceHandler) GetSyncLog(c *gin.Context) {
 // @Success 200 {object} []datasource.ConnectorMetadata
 // @Router /datasource/types [get]
 func (h *DataSourceHandler) GetAvailableConnectors(c *gin.Context) {
-	connectors := datasource.ListAvailableConnectors()
+	connectors := h.registry.ListMetadata()
 	c.JSON(http.StatusOK, connectors)
 }

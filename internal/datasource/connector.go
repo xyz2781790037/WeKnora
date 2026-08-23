@@ -2,6 +2,8 @@ package datasource
 
 import (
 	"context"
+	"sort"
+	"sync"
 
 	"github.com/Tencent/WeKnora/internal/types"
 )
@@ -95,30 +97,67 @@ type StreamingConnector interface {
 
 // ConnectorRegistry manages the registration and lookup of available connectors
 type ConnectorRegistry struct {
+	mu         sync.RWMutex
 	connectors map[string]Connector
+	metadata   map[string]ConnectorMetadata
 }
 
 // NewConnectorRegistry creates a new connector registry
 func NewConnectorRegistry() *ConnectorRegistry {
 	return &ConnectorRegistry{
 		connectors: make(map[string]Connector),
+		metadata:   make(map[string]ConnectorMetadata),
 	}
 }
 
 // Register registers a connector with the registry
 func (r *ConnectorRegistry) Register(connector Connector) error {
+	return r.RegisterWithMetadata(connector, ConnectorMetadataRegistry[connectorType(connector)])
+}
+
+// RegisterWithMetadata registers a connector and the UI metadata describing it.
+// Re-registering a type replaces the current implementation atomically; this is
+// used when an enabled external plugin is upgraded without restarting WeKnora.
+func (r *ConnectorRegistry) RegisterWithMetadata(connector Connector, metadata ConnectorMetadata) error {
 	if connector == nil {
 		return ErrConnectorNil
 	}
 	if connector.Type() == "" {
 		return ErrConnectorTypeEmpty
 	}
+	if metadata.Type == "" {
+		metadata.Type = connector.Type()
+	}
+	if metadata.Name == "" {
+		metadata.Name = connector.Type()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.connectors[connector.Type()] = connector
+	r.metadata[connector.Type()] = metadata
 	return nil
+}
+
+func connectorType(connector Connector) string {
+	if connector == nil {
+		return ""
+	}
+	return connector.Type()
+}
+
+// Unregister removes one dynamic connector. Existing data source records are
+// retained and become unavailable until the plugin is enabled again.
+func (r *ConnectorRegistry) Unregister(connectorType string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.connectors, connectorType)
+	delete(r.metadata, connectorType)
 }
 
 // Get retrieves a connector by type
 func (r *ConnectorRegistry) Get(connectorType string) (Connector, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	connector, exists := r.connectors[connectorType]
 	if !exists {
 		return nil, ErrConnectorNotFound
@@ -128,6 +167,8 @@ func (r *ConnectorRegistry) Get(connectorType string) (Connector, error) {
 
 // List returns all registered connector types
 func (r *ConnectorRegistry) List() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	types := make([]string, 0, len(r.connectors))
 	for t := range r.connectors {
 		types = append(types, t)
@@ -135,15 +176,37 @@ func (r *ConnectorRegistry) List() []string {
 	return types
 }
 
+// ListMetadata returns metadata only for connectors that are currently
+// registered and callable.
+func (r *ConnectorRegistry) ListMetadata() []ConnectorMetadata {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	metadata := make([]ConnectorMetadata, 0, len(r.metadata))
+	for _, item := range r.metadata {
+		metadata = append(metadata, item)
+	}
+	sort.Slice(metadata, func(i, j int) bool {
+		if metadata[i].Priority == metadata[j].Priority {
+			return metadata[i].Type < metadata[j].Type
+		}
+		return metadata[i].Priority < metadata[j].Priority
+	})
+	return metadata
+}
+
 // ConnectorMetadata provides metadata about available connectors
 type ConnectorMetadata struct {
-	Type         string   `json:"type"`
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	Icon         string   `json:"icon,omitempty"`
-	Priority     int      `json:"priority"`     // Priority order for UI display (lower = higher priority)
-	AuthType     string   `json:"auth_type"`    // "oauth2", "api_key", "token", etc.
-	Capabilities []string `json:"capabilities"` // "incremental", "webhook", "deletion_sync", etc.
+	Type         string         `json:"type"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Icon         string         `json:"icon,omitempty"`
+	Priority     int            `json:"priority"`     // Priority order for UI display (lower = higher priority)
+	AuthType     string         `json:"auth_type"`    // "oauth2", "api_key", "token", etc.
+	Capabilities []string       `json:"capabilities"` // "incremental", "webhook", "deletion_sync", etc.
+	Origin       string         `json:"origin,omitempty"`
+	PluginID     string         `json:"plugin_id,omitempty"`
+	ConfigSchema map[string]any `json:"config_schema,omitempty"`
+	SecretFields []string       `json:"secret_fields,omitempty"`
 }
 
 // GetConnectorMetadata returns metadata for all available connectors
@@ -295,16 +358,12 @@ func ListAvailableConnectors() []ConnectorMetadata {
 		metadata = append(metadata, meta)
 	}
 
-	// Sort by priority (insertion sort for simplicity)
-	for i := 1; i < len(metadata); i++ {
-		key := metadata[i]
-		j := i - 1
-		for j >= 0 && metadata[j].Priority > key.Priority {
-			metadata[j+1] = metadata[j]
-			j--
+	sort.Slice(metadata, func(i, j int) bool {
+		if metadata[i].Priority == metadata[j].Priority {
+			return metadata[i].Type < metadata[j].Type
 		}
-		metadata[j+1] = key
-	}
+		return metadata[i].Priority < metadata[j].Priority
+	})
 
 	return metadata
 }

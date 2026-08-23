@@ -365,6 +365,7 @@ func (s *DataSourceService) ValidateConnection(ctx context.Context, dsID string)
 	if err != nil {
 		return datasource.ErrInvalidConfig
 	}
+	setConnectorInvocation(config, ds)
 
 	// Validate connection
 	if err := connector.Validate(ctx, config); err != nil {
@@ -407,6 +408,7 @@ func (s *DataSourceService) ListAvailableResources(
 	if err != nil {
 		return nil, datasource.ErrInvalidConfig
 	}
+	setConnectorInvocation(config, ds)
 
 	// List resources
 	resources, err := connector.ListResources(ctx, config, parentID)
@@ -441,6 +443,7 @@ func (s *DataSourceService) ResolveResourceAncestors(
 	if err != nil {
 		return nil, datasource.ErrInvalidConfig
 	}
+	setConnectorInvocation(config, ds)
 
 	ancestors, err := connector.ResolveResourceAncestors(ctx, config, resourceIDs)
 	if err != nil {
@@ -660,6 +663,7 @@ func (s *DataSourceService) ProcessSync(ctx context.Context, task *asynq.Task) e
 		_ = s.dsRepo.Update(ctx, ds)
 		return err
 	}
+	setConnectorInvocation(config, ds)
 	// Surface the KB's multimodal/VLM state to the connector so it only extracts
 	// embedded images for OCR when the KB can actually ingest them (never persisted).
 	config.MultimodalEnabled = kb.IsMultimodalEnabled()
@@ -1194,13 +1198,19 @@ func allFetchedItemsFailedError(result *types.SyncResult) error {
 
 // ValidateCredentials tests connectivity using raw credentials without persisting anything.
 func (s *DataSourceService) ValidateCredentials(ctx context.Context, connectorType string, credentials map[string]interface{}) error {
-	connector, err := s.connectorRegistry.Get(connectorType)
-	if err != nil {
-		return err
-	}
-	config := &types.DataSourceConfig{
+	return s.ValidateDataSourceConfig(ctx, &types.DataSourceConfig{
 		Type:        connectorType,
 		Credentials: credentials,
+	})
+}
+
+func (s *DataSourceService) ValidateDataSourceConfig(ctx context.Context, config *types.DataSourceConfig) error {
+	if config == nil || strings.TrimSpace(config.Type) == "" {
+		return datasource.ErrInvalidConfig
+	}
+	connector, err := s.connectorRegistry.Get(config.Type)
+	if err != nil {
+		return err
 	}
 	if err := connector.Validate(ctx, config); err != nil {
 		return err
@@ -1221,8 +1231,17 @@ func (s *DataSourceService) validateDataSourceConfig(ctx context.Context, ds *ty
 	if err != nil {
 		return datasource.ErrInvalidConfig
 	}
+	setConnectorInvocation(config, ds)
 
 	return connector.Validate(ctx, config)
+}
+
+func setConnectorInvocation(config *types.DataSourceConfig, ds *types.DataSource) {
+	if config == nil || ds == nil {
+		return
+	}
+	config.TenantID = ds.TenantID
+	config.InstanceID = ds.ID
 }
 
 // ingestItem writes a single FetchedItem into the knowledge base.

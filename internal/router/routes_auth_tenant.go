@@ -250,8 +250,9 @@ func RegisterSystemRoutes(
 // the optional wiring in RegisterTenantRoutes.
 func RegisterSystemAdminRoutes(
 	r *gin.RouterGroup,
-	handler *handler.SystemHandler,
+	systemHandler *handler.SystemHandler,
 	auditLogHandler *handler.AuditLogHandler,
+	pluginHandler *handler.PluginHandler,
 	g *rbacGuards,
 ) {
 	// Apply SystemAdmin() at the group level — every route below inherits
@@ -259,13 +260,25 @@ func RegisterSystemAdminRoutes(
 	adminRoutes := r.Group("/system/admin", g.SystemAdmin())
 	{
 		// P0: SystemAdmin role management
-		adminRoutes.POST("/promote", handler.PromoteUserToSystemAdmin)
-		adminRoutes.POST("/revoke", handler.RevokeSystemAdmin)
-		adminRoutes.GET("/list", handler.ListSystemAdmins)
-		adminRoutes.POST("/users/reset-password", handler.ResetUserPassword)
-		adminRoutes.GET("/api-keys", handler.ListPlatformAPIKeys)
-		adminRoutes.POST("/api-keys", handler.CreatePlatformAPIKey)
-		adminRoutes.DELETE("/api-keys/:key_id", handler.DeletePlatformAPIKey)
+		adminRoutes.POST("/promote", systemHandler.PromoteUserToSystemAdmin)
+		adminRoutes.POST("/revoke", systemHandler.RevokeSystemAdmin)
+		adminRoutes.GET("/list", systemHandler.ListSystemAdmins)
+		adminRoutes.POST("/users/reset-password", systemHandler.ResetUserPassword)
+		adminRoutes.GET("/api-keys", systemHandler.ListPlatformAPIKeys)
+		adminRoutes.POST("/api-keys", systemHandler.CreatePlatformAPIKey)
+		adminRoutes.DELETE("/api-keys/:key_id", systemHandler.DeletePlatformAPIKey)
+
+		if pluginHandler != nil {
+			plugins := adminRoutes.Group("/plugins")
+			plugins.GET("", pluginHandler.List)
+			plugins.POST("", pluginHandler.Install)
+			plugins.GET("/:id", pluginHandler.Get)
+			plugins.PUT("/:id", pluginHandler.Upgrade)
+			plugins.POST("/:id/enable", pluginHandler.Enable)
+			plugins.POST("/:id/disable", pluginHandler.Disable)
+			plugins.POST("/:id/health", pluginHandler.Health)
+			plugins.DELETE("/:id", pluginHandler.Uninstall)
+		}
 
 		// P1: platform-wide system settings (DB-backed runtime tunables).
 		// Reads return raw model rows / arrays (no `gin.H{"data":...}`
@@ -273,35 +286,35 @@ func RegisterSystemAdminRoutes(
 		// — see frontend/src/utils/request.ts:97.
 		g.apiKeyRoute(adminRoutes, http.MethodGet, "/settings",
 			apiKeyPlatform(types.APIKeyCapabilitySystemSettingsRead, types.APIKeyCapabilitySystemSettingsManage),
-			handler.ListSystemSettings)
+			systemHandler.ListSystemSettings)
 		g.apiKeyRoute(adminRoutes, http.MethodGet, "/settings/:key",
 			apiKeyPlatform(types.APIKeyCapabilitySystemSettingsRead, types.APIKeyCapabilitySystemSettingsManage),
-			handler.GetSystemSetting)
+			systemHandler.GetSystemSetting)
 		g.apiKeyRoute(adminRoutes, http.MethodPut, "/settings/:key",
-			apiKeyPlatform(types.APIKeyCapabilitySystemSettingsManage), handler.UpdateSystemSetting)
+			apiKeyPlatform(types.APIKeyCapabilitySystemSettingsManage), systemHandler.UpdateSystemSetting)
 		g.apiKeyRoute(adminRoutes, http.MethodDelete, "/settings/:key",
-			apiKeyPlatform(types.APIKeyCapabilitySystemSettingsManage), handler.ResetSystemSetting)
+			apiKeyPlatform(types.APIKeyCapabilitySystemSettingsManage), systemHandler.ResetSystemSetting)
 
 		// Runtime operations: live asynq queue depths, safe task projections,
 		// and state-checked task actions for the SystemAdmin dashboard. Lite
 		// mode returns available=false.
 		g.apiKeyRoute(adminRoutes, http.MethodGet, "/runtime/queues",
 			apiKeyPlatform(types.APIKeyCapabilitySystemRuntimeRead, types.APIKeyCapabilitySystemRuntimeManage),
-			handler.GetRuntimeQueues)
+			systemHandler.GetRuntimeQueues)
 		g.apiKeyRoute(adminRoutes, http.MethodGet, "/runtime/queues/:queue/tasks",
 			apiKeyPlatform(types.APIKeyCapabilitySystemRuntimeRead, types.APIKeyCapabilitySystemRuntimeManage),
-			handler.ListRuntimeTasks)
+			systemHandler.ListRuntimeTasks)
 		g.apiKeyRoute(adminRoutes, http.MethodPost, "/runtime/queues/:queue/tasks/:task_id/actions/:action",
-			apiKeyPlatform(types.APIKeyCapabilitySystemRuntimeManage), handler.MutateRuntimeTask)
+			apiKeyPlatform(types.APIKeyCapabilitySystemRuntimeManage), systemHandler.MutateRuntimeTask)
 		g.apiKeyRoute(adminRoutes, http.MethodDelete, "/runtime/queues/:queue/archived",
-			apiKeyPlatform(types.APIKeyCapabilitySystemRuntimeManage), handler.PurgeArchivedRuntimeTasks)
+			apiKeyPlatform(types.APIKeyCapabilitySystemRuntimeManage), systemHandler.PurgeArchivedRuntimeTasks)
 
 		// Bulk action — write the current default-quota setting onto
 		// every existing tenant. Lives under /tenants instead of
 		// /settings because it changes tenants, not the setting row.
 		g.apiKeyRoute(adminRoutes, http.MethodPost, "/tenants/apply-default-storage-quota",
 			apiKeyPlatform(types.APIKeyCapabilitySystemTenantsManage),
-			handler.ApplyDefaultStorageQuotaToAllTenants)
+			systemHandler.ApplyDefaultStorageQuotaToAllTenants)
 
 		// Platform-wide audit feed (tenant_id=0 rows). Covers
 		// system.setting_changed / system.admin_promoted /
