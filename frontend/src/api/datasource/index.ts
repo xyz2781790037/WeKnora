@@ -72,6 +72,14 @@ export interface ConnectorMeta {
   priority: number
   auth_type: string
   capabilities: string[]
+  origin?: 'builtin' | 'external'
+  plugin_id?: string
+  config_schema?: {
+    type?: string
+    properties?: Record<string, any>
+    required?: string[]
+  }
+  secret_fields?: string[]
 }
 
 export interface Resource {
@@ -115,8 +123,18 @@ export function validateConnection(id: string) {
 }
 
 // Validate credentials without persisting (for "Test Connection" during creation)
-export function validateCredentials(type: string, credentials: Record<string, any>) {
-  return post('/api/v1/datasource/validate-credentials', { type, credentials })
+export function validateCredentials(
+	type: string,
+	credentials: Record<string, any>,
+	settings?: Record<string, any>,
+	resourceIds?: string[],
+) {
+	return post('/api/v1/datasource/validate-credentials', {
+		type,
+		credentials,
+		...(settings ? { settings } : {}),
+		...(resourceIds ? { resource_ids: resourceIds } : {}),
+	})
 }
 
 // listResources lists selectable resources for a data source. Pass parentId to

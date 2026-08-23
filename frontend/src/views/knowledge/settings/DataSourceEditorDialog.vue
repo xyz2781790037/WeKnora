@@ -13,10 +13,13 @@ import {
   deleteDataSource,
   putDataSourceCredentials,
   deleteDataSourceCredentials,
+	getConnectorTypes,
   type DataSource,
+	type ConnectorMeta,
   type Resource,
 } from '@/api/datasource'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
+import JSONSchemaFields, { type PluginJSONSchema } from '@/components/plugin/JSONSchemaFields.vue'
 import DataSourceTypeIcon from './DataSourceTypeIcon.vue'
 import { getDatasourceIconUrl } from './datasourceIcons'
 
@@ -484,6 +487,11 @@ interface ConnectorDef {
   permissionDocUrl: string
   permissionPageUrl: string
   requiredPermissions: string[]
+	name?: string
+	description?: string
+	origin?: 'builtin' | 'external'
+	configSchema?: PluginJSONSchema
+	secretFields?: string[]
   fields: {
     key: string
     labelKey: string
@@ -496,7 +504,7 @@ interface ConnectorDef {
   }[]
 }
 
-const connectorDefs = computed<ConnectorDef[]>(() => [
+const builtinConnectorDefs = computed<ConnectorDef[]>(() => [
   {
     type: 'feishu',
     available: true,
@@ -635,8 +643,67 @@ const connectorDefs = computed<ConnectorDef[]>(() => [
   },
 ])
 
+const connectorMetadata = ref<ConnectorMeta[]>([])
+
+const connectorDefs = computed<ConnectorDef[]>(() => {
+	const builtins = builtinConnectorDefs.value
+	const known = new Set(builtins.map(item => item.type))
+	const external = connectorMetadata.value
+		.filter(item => item.origin === 'external' && !known.has(item.type))
+		.map(item => ({
+			type: item.type,
+			available: true,
+			docUrl: '',
+			permissionDocUrl: '',
+			permissionPageUrl: '',
+			requiredPermissions: [],
+			fields: [],
+			name: item.name,
+			description: item.description,
+			origin: 'external' as const,
+			configSchema: item.config_schema,
+			secretFields: item.secret_fields || [],
+		}))
+	return [...builtins, ...external]
+})
 
 const currentDef = computed(() => connectorDefs.value.find(d => d.type === form.value.type))
+const isExternalConnector = computed(() => currentDef.value?.origin === 'external')
+const externalSecretFields = computed(() => currentDef.value?.secretFields || [])
+
+async function loadConnectorMetadata() {
+	try {
+		const response: any = await getConnectorTypes()
+		connectorMetadata.value = response?.data || response || []
+	} catch (error: any) {
+		connectorMetadata.value = []
+		MessagePlugin.warning(error?.message || '外部数据源插件列表加载失败')
+	}
+}
+
+function connectorName(def: ConnectorDef): string {
+	return def.name || t(`datasource.connector.${def.type}`)
+}
+
+function connectorDescription(def: ConnectorDef): string {
+	return def.description || t(`datasource.connectorDesc.${def.type}`)
+}
+
+function applyExternalDefaults(def: ConnectorDef) {
+	if (def.origin !== 'external') return
+	const secrets = new Set(def.secretFields || [])
+	for (const [key, property] of Object.entries(def.configSchema?.properties || {})) {
+		if (property.default === undefined) continue
+		const destination = secrets.has(key)
+			? form.value.config.credentials
+			: form.value.config.settings
+		if (destination[key] === undefined) {
+			destination[key] = Array.isArray(property.default)
+				? [...property.default]
+				: property.default
+		}
+	}
+}
 
 // --- Drawer lifecycle ---
 watch(visible, async (v) => {
@@ -651,6 +718,7 @@ watch(visible, async (v) => {
     }
     return
   }
+	await loadConnectorMetadata()
   step.value = isEdit.value ? 1 : 0
   testResult.value = ''
   testErrorMsg.value = ''
@@ -693,6 +761,9 @@ watch(visible, async (v) => {
       conflict_strategy: props.dataSource.conflict_strategy,
       sync_deletions: props.dataSource.sync_deletions,
     }
+		if (currentDef.value?.origin === 'external') {
+			applyExternalDefaults(currentDef.value)
+		}
     selectedResourceIds.value = form.value.config?.resource_ids || []
     if (isGitLabConnector(form.value.type)) {
       const savedProjects = Array.isArray(form.value.config.settings.projects) ? form.value.config.settings.projects : []
@@ -762,11 +833,24 @@ watch(
   },
 )
 
+watch(
+	() => form.value.config.settings,
+	() => {
+		if (isExternalConnector.value && needsConnectionTest()) {
+			testResult.value = ''
+			testErrorMsg.value = ''
+		}
+	},
+	{ deep: true },
+)
+
 function selectType(def: ConnectorDef) {
   if (!def.available) return
   form.value.type = def.type
-  form.value.name = t(`datasource.connector.${def.type}`)
+	form.value.name = connectorName(def)
   form.value.config.credentials = {}
+	form.value.config.settings = {}
+	applyExternalDefaults(def)
   if (isGitLabConnector(def.type)) addGitLabProject()
   rssAuthHeaders.value = []
   step.value = 1
@@ -791,9 +875,17 @@ async function testConnection() {
   testResult.value = ''
   testErrorMsg.value = ''
   try {
-    if (isEdit.value && tempDsId.value) {
+		if (isExternalConnector.value && needsConnectionTest()) {
+			await validateCredentials(
+				form.value.type,
+				{ ...form.value.config.credentials },
+				{ ...form.value.config.settings },
+				form.value.config.resource_ids,
+			)
+		} else if (isEdit.value && tempDsId.value) {
       await updateDataSource(tempDsId.value, {
         ...form.value,
+				config: buildConfigPayload(),
         knowledge_base_id: props.kbId,
       } as any)
       await validateConnection(tempDsId.value)
@@ -969,7 +1061,25 @@ function validateRssFeedUrls(): boolean {
 function validateStep1Fields(): boolean {
   syncRssAuthHeadersToCredentials()
   if (!validateRssFeedUrls()) return false
-  if (isEdit.value && credentialsConfigured.value && !replaceCredentialsMode.value) {
+	if (isExternalConnector.value) {
+		const required = currentDef.value?.configSchema?.required || []
+		const secrets = new Set(currentDef.value?.secretFields || [])
+		for (const key of required) {
+			if (secrets.has(key) && isEdit.value && credentialsConfigured.value && !replaceCredentialsMode.value) {
+				continue
+			}
+			const value = secrets.has(key)
+				? form.value.config.credentials[key]
+				: form.value.config.settings[key]
+			if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
+				const title = currentDef.value?.configSchema?.properties?.[key]?.title || key
+				MessagePlugin.warning(`${title} ${t('datasource.isRequired')}`)
+				return false
+			}
+		}
+		return true
+	}
+	if (isEdit.value && credentialsConfigured.value && !replaceCredentialsMode.value) {
     return true
   }
 
@@ -1307,10 +1417,10 @@ const drawerConfirmText = computed(() => {
         >
           <div class="ds-type-header">
             <DataSourceTypeIcon :type="def.type" :size="20" />
-            <span class="ds-type-name">{{ t(`datasource.connector.${def.type}`) }}</span>
+			<span class="ds-type-name">{{ connectorName(def) }}</span>
             <span v-if="!def.available" class="ds-type-soon">{{ t('datasource.comingSoon') }}</span>
           </div>
-          <div class="ds-type-desc">{{ t(`datasource.connectorDesc.${def.type}`) }}</div>
+		  <div class="ds-type-desc">{{ connectorDescription(def) }}</div>
         </button>
       </div>
     </section>
@@ -1417,7 +1527,18 @@ const drawerConfirmText = computed(() => {
         </div>
       </section>
 
-      <section class="setting-drawer__section">
+	  <section v-if="isExternalConnector" class="setting-drawer__section">
+		<h4 class="setting-drawer__section-title">数据源配置</h4>
+		<JSONSchemaFields
+			:schema="currentDef?.configSchema"
+			:model-value="form.config.settings"
+			:secret-fields="currentDef?.secretFields"
+			mode="settings"
+			@update:model-value="value => form.config.settings = value"
+		/>
+	  </section>
+
+	  <section v-if="!isExternalConnector || externalSecretFields.length > 0" class="setting-drawer__section">
         <h4 class="setting-drawer__section-title">{{ t('datasource.credentialsLabel') }}</h4>
 
         <div v-if="isEdit && credentialsConfigured && !replaceCredentialsMode" class="form-item">
@@ -1480,6 +1601,15 @@ const drawerConfirmText = computed(() => {
         </div>
 
         <template v-else-if="credentialsInputVisible">
+		  <JSONSchemaFields
+			v-if="isExternalConnector"
+			:schema="currentDef?.configSchema"
+			:model-value="form.config.credentials"
+			:secret-fields="currentDef?.secretFields"
+			mode="secrets"
+			@update:model-value="value => form.config.credentials = value"
+		  />
+		  <template v-else>
           <div
             v-for="field in currentDef?.fields || []"
             :key="field.key"
@@ -1548,6 +1678,7 @@ const drawerConfirmText = computed(() => {
               <p v-if="field.hintKey" class="form-desc">{{ t(field.hintKey) }}</p>
             </template>
           </div>
+		  </template>
           <div v-if="isEdit && replaceCredentialsMode" class="credential-edit-actions">
             <t-button size="small" variant="text" @click="cancelReplaceCredentials">
               {{ t('common.cancel') }}
