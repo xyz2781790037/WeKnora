@@ -22,11 +22,21 @@ type egressProxy struct {
 	address  string
 	policies proxyPolicySource
 	events   *eventBus
+	resolver hostResolver
 	server   *http.Server
 }
 
 func newEgressProxy(address string, policies proxyPolicySource, events *eventBus) *egressProxy {
-	proxy := &egressProxy{address: address, policies: policies, events: events}
+	return newEgressProxyWithResolver(address, policies, events, newTrustedResolver())
+}
+
+func newEgressProxyWithResolver(
+	address string,
+	policies proxyPolicySource,
+	events *eventBus,
+	resolver hostResolver,
+) *egressProxy {
+	proxy := &egressProxy{address: address, policies: policies, events: events, resolver: resolver}
 	proxy.server = &http.Server{
 		Addr:              address,
 		Handler:           proxy,
@@ -94,7 +104,7 @@ func (p *egressProxy) serveTunnel(
 	request *http.Request,
 	pluginID, host, port string,
 ) {
-	upstream, err := dialPublic(request.Context(), "tcp", net.JoinHostPort(host, port))
+	upstream, err := p.dialPublic(request.Context(), "tcp", net.JoinHostPort(host, port))
 	if err != nil {
 		p.deny(writer, pluginID, net.JoinHostPort(host, port), err.Error())
 		return
@@ -140,7 +150,7 @@ func (p *egressProxy) serveHTTP(
 	outbound.URL.Host = net.JoinHostPort(host, port)
 	transport := &http.Transport{
 		Proxy:       nil,
-		DialContext: dialPublic,
+		DialContext: p.dialPublic,
 	}
 	defer transport.CloseIdleConnections()
 	response, err := transport.RoundTrip(outbound)
@@ -219,21 +229,29 @@ func normalizeHost(host string) string {
 	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
 }
 
-func dialPublic(ctx context.Context, network, address string) (net.Conn, error) {
+func (p *egressProxy) dialPublic(ctx context.Context, network, address string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err
 	}
-	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	addresses, err := p.resolver.LookupNetIP(ctx, host)
 	if err != nil {
 		return nil, err
 	}
+	var dialErrors []error
 	for _, address := range addresses {
-		if !publicIP(address.IP) {
+		if !publicAddr(address) {
 			continue
 		}
 		var dialer net.Dialer
-		return dialer.DialContext(ctx, network, net.JoinHostPort(address.IP.String(), port))
+		connection, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(address.String(), port))
+		if dialErr == nil {
+			return connection, nil
+		}
+		dialErrors = append(dialErrors, dialErr)
+	}
+	if len(dialErrors) > 0 {
+		return nil, fmt.Errorf("connect to public addresses for %s: %w", host, errors.Join(dialErrors...))
 	}
 	return nil, fmt.Errorf("target %s resolved only to private or reserved addresses", host)
 }
@@ -243,6 +261,10 @@ func publicIP(ip net.IP) bool {
 	if !ok {
 		return false
 	}
+	return publicAddr(address)
+}
+
+func publicAddr(address netip.Addr) bool {
 	address = address.Unmap()
 	if !address.IsGlobalUnicast() || address.IsPrivate() || address.IsLoopback() || address.IsLinkLocalUnicast() {
 		return false

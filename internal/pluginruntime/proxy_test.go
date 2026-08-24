@@ -1,10 +1,12 @@
 package pluginruntime
 
 import (
+	"context"
 	"encoding/base64"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 )
 
@@ -12,6 +14,12 @@ type staticProxyPolicies struct {
 	pluginID string
 	token    string
 	hosts    []string
+}
+
+type staticHostResolver []netip.Addr
+
+func (r staticHostResolver) LookupNetIP(context.Context, string) ([]netip.Addr, error) {
+	return append([]netip.Addr(nil), r...), nil
 }
 
 func (p staticProxyPolicies) proxyPolicy(pluginID, token string) ([]string, bool) {
@@ -52,6 +60,16 @@ func TestPublicIPRejectsPrivateAndReservedRanges(t *testing.T) {
 	}
 	if !publicIP(net.ParseIP("8.8.8.8")) {
 		t.Fatal("8.8.8.8 should be considered public")
+	}
+}
+
+func TestDialPublicRejectsFakeIPResolution(t *testing.T) {
+	proxy := &egressProxy{resolver: staticHostResolver{
+		netip.MustParseAddr("198.18.0.19"),
+	}}
+	_, err := proxy.dialPublic(context.Background(), "tcp", "api.github.com:443")
+	if err == nil {
+		t.Fatal("Fake-IP resolution must not be dialed")
 	}
 }
 
