@@ -3,21 +3,24 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	infra_web_search "github.com/Tencent/WeKnora/internal/infrastructure/web_search"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
+	pluginsdk "github.com/Tencent/WeKnora/sdk/plugin/go"
 )
 
 // webSearchProviderService implements interfaces.WebSearchProviderService
 type webSearchProviderService struct {
-	repo interfaces.WebSearchProviderRepository
+	repo     interfaces.WebSearchProviderRepository
+	registry *infra_web_search.Registry
 }
 
 // NewWebSearchProviderService creates a new web search provider service
-func NewWebSearchProviderService(repo interfaces.WebSearchProviderRepository) interfaces.WebSearchProviderService {
-	return &webSearchProviderService{repo: repo}
+func NewWebSearchProviderService(repo interfaces.WebSearchProviderRepository, registry *infra_web_search.Registry) interfaces.WebSearchProviderService {
+	return &webSearchProviderService{repo: repo, registry: registry}
 }
 
 // CreateProvider creates a new web search provider configuration.
@@ -26,11 +29,14 @@ func (s *webSearchProviderService) CreateProvider(ctx context.Context, provider 
 		return fmt.Errorf("tenant ID is required")
 	}
 
-	if !isValidProviderType(provider.Provider) {
+	if s.registry == nil || !s.registry.Has(string(provider.Provider)) {
 		return fmt.Errorf("invalid provider type: %s", provider.Provider)
 	}
 
 	if err := validateProviderParameters(provider.Provider, provider.Parameters); err != nil {
+		return err
+	}
+	if err := validateExternalWebSearchParameters(s.registry, provider.Provider, provider.Parameters); err != nil {
 		return err
 	}
 
@@ -51,7 +57,7 @@ func (s *webSearchProviderService) UpdateProvider(ctx context.Context, provider 
 	}
 
 	// Validate provider type if set
-	if provider.Provider != "" && !isValidProviderType(provider.Provider) {
+	if provider.Provider != "" && (s.registry == nil || !s.registry.Has(string(provider.Provider))) {
 		return fmt.Errorf("invalid provider type: %s", provider.Provider)
 	}
 
@@ -63,6 +69,9 @@ func (s *webSearchProviderService) UpdateProvider(ctx context.Context, provider 
 
 	if provider.Provider != "" {
 		if err := validateProviderParameters(provider.Provider, provider.Parameters); err != nil {
+			return err
+		}
+		if err := validateExternalWebSearchParameters(s.registry, provider.Provider, provider.Parameters); err != nil {
 			return err
 		}
 	}
@@ -126,24 +135,15 @@ func (s *webSearchProviderService) DeleteProvider(ctx context.Context, tenantID 
 	return s.repo.Delete(ctx, tenantID, id)
 }
 
-// isValidProviderType checks if the given provider type is supported
+// isValidProviderType reports whether provider is one of the built-in types.
+// External types are resolved through Registry.Has at the service boundary.
 func isValidProviderType(provider types.WebSearchProviderType) bool {
-	switch provider {
-	case types.WebSearchProviderTypeBing,
-		types.WebSearchProviderTypeGoogle,
-		types.WebSearchProviderTypeDuckDuckGo,
-		types.WebSearchProviderTypeTavily,
-		types.WebSearchProviderTypeOllama,
-		types.WebSearchProviderTypeBaidu,
-		types.WebSearchProviderTypeSearxng,
-		types.WebSearchProviderTypeKeenable,
-		types.WebSearchProviderTypeMetaso,
-		types.WebSearchProviderTypeZhipu,
-		types.WebSearchProviderTypeExa:
-		return true
-	default:
-		return false
+	for _, item := range types.GetWebSearchProviderTypes() {
+		if item.ID == string(provider) {
+			return true
+		}
 	}
+	return false
 }
 
 // validateProviderParameters validates required parameters for each provider type
@@ -195,6 +195,32 @@ func validateProviderParameters(provider types.WebSearchProviderType, params typ
 	}
 	if err := validateOptionalProxyURL(params.ProxyURL); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateExternalWebSearchParameters(registry *infra_web_search.Registry, provider types.WebSearchProviderType, params types.WebSearchProviderParameters) error {
+	if registry == nil {
+		return nil
+	}
+	metadata, ok := registry.ExternalMetadata(string(provider))
+	if !ok || len(metadata.ConfigSchema) == 0 {
+		return nil
+	}
+	values := make(map[string]any, len(params.ExtraConfig)+4)
+	for key, value := range params.ExtraConfig {
+		values[key] = value
+	}
+	for key, value := range map[string]string{
+		"api_key": params.APIKey, "engine_id": params.EngineID,
+		"base_url": params.BaseURL, "proxy_url": params.ProxyURL,
+	} {
+		if strings.TrimSpace(value) != "" {
+			values[key] = value
+		}
+	}
+	if err := pluginsdk.ValidateConfigValues(metadata.ConfigSchema, values); err != nil {
+		return fmt.Errorf("invalid external web search configuration: %w", err)
 	}
 	return nil
 }

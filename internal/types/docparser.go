@@ -47,6 +47,10 @@ type ParserEngineInfo struct {
 	FileTypes         []string
 	Available         bool
 	UnavailableReason string
+	Origin            string
+	PluginID          string
+	ConfigSchema      map[string]any
+	SecretFields      []string
 }
 
 // --- Internal types used by chunking pipeline ---

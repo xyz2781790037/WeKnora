@@ -35,3 +35,9 @@ spec:
     dataAccess:
       - document_content
       - document_metadata
+  resources:
+    memoryBytes: 268435456
+    nanoCPUs: 500000000
+    pidsLimit: 64
+    maxConcurrency: 4
+    callsPerMinute: 120

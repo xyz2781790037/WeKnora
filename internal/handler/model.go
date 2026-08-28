@@ -696,11 +696,16 @@ func (h *ModelHandler) DeleteModel(c *gin.Context) {
 
 // ModelProviderDTO 模型厂商信息 DTO
 type ModelProviderDTO struct {
-	Value       string            `json:"value"`       // provider 标识符
-	Label       string            `json:"label"`       // 显示名称
-	Description string            `json:"description"` // 描述
-	DefaultURLs map[string]string `json:"defaultUrls"` // 按模型类型区分的默认 URL
-	ModelTypes  []string          `json:"modelTypes"`  // 支持的模型类型
+	Value        string                      `json:"value"`       // provider 标识符
+	Label        string                      `json:"label"`       // 显示名称
+	Description  string                      `json:"description"` // 描述
+	DefaultURLs  map[string]string           `json:"defaultUrls"` // 按模型类型区分的默认 URL
+	ModelTypes   []string                    `json:"modelTypes"`  // 支持的模型类型
+	ExtraFields  []provider.ExtraFieldConfig `json:"extraFields,omitempty"`
+	ConfigSchema map[string]any              `json:"configSchema,omitempty"`
+	SecretFields []string                    `json:"secretFields,omitempty"`
+	RequiresAuth bool                        `json:"requiresAuth"`
+	External     bool                        `json:"external"`
 }
 
 // modelTypeToFrontend 将后端 ModelType 转换为前端兼容的字符串
@@ -785,11 +790,16 @@ func (h *ModelHandler) ListModelProviders(c *gin.Context) {
 		}
 
 		result = append(result, ModelProviderDTO{
-			Value:       string(p.Name),
-			Label:       p.DisplayName,
-			Description: p.Description,
-			DefaultURLs: defaultURLs,
-			ModelTypes:  modelTypes,
+			Value:        string(p.Name),
+			Label:        p.DisplayName,
+			Description:  p.Description,
+			DefaultURLs:  defaultURLs,
+			ModelTypes:   modelTypes,
+			ExtraFields:  p.ExtraFields,
+			ConfigSchema: p.ConfigSchema,
+			SecretFields: p.SecretFields,
+			RequiresAuth: p.RequiresAuth,
+			External:     len(p.ConfigSchema) > 0,
 		})
 	}
 

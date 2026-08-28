@@ -18,6 +18,7 @@ metadata:
   version: 1.2.3
 spec:
   protocolVersion: 1.1.0
+  weknoraVersion: ">=0.2.0"
   image: example.test/plugin:1.2.3
   types: [data_source]
   connectorType: external_test
@@ -54,6 +55,7 @@ metadata:
   version: 1.0.0
 spec:
   protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
   image: example.test/plugin:1.0.0
   types: [data_source]
   connectorType: external_test
@@ -81,12 +83,14 @@ metadata:
   version: 1.0.0
 spec:
   protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
   image: example.test/plugin:1.0.0
   types: [data_source]
   connectorType: external_test
   config:
     schema:
       type: object
+      properties: {}
   permissions:
     network: false
     allowedHosts: [api.example.test]
@@ -105,6 +109,7 @@ metadata:
   version: 1.0.0
 spec:
   protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
   image: example.test/plugin:1.0.0
   types: [data_source]
   connectorType: external_test
@@ -129,6 +134,7 @@ metadata:
   version: 1.0.0
 spec:
   protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
   image: example.test/plugin:1.0.0
   types: [data_source]
   connectorType: external_test
@@ -142,6 +148,71 @@ kind: Plugin
 `))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exactly one YAML document")
+}
+
+func TestManifestConvertsSupplyChainAndResourceLimits(t *testing.T) {
+	manifest, err := ParseManifest([]byte(`
+apiVersion: weknora.io/v1
+kind: Plugin
+metadata:
+  id: io.example.datasource.signed
+  name: Signed source
+  version: 1.0.0
+spec:
+  protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
+  image: ghcr.io/example/signed:1.0.0
+  types: [data_source]
+  connectorType: signed_source
+  config:
+    schema:
+      type: object
+      properties: {}
+  permissions:
+    network: false
+  supplyChain:
+    publisher: io.example
+    sourceRepository: https://github.com/example/signed
+    imageDigest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  resources:
+    memoryBytes: 268435456
+    nanoCPUs: 500000000
+    pidsLimit: 64
+    maxConcurrency: 4
+    callsPerMinute: 60
+`))
+	require.NoError(t, err)
+	transport, err := manifest.ToProto()
+	require.NoError(t, err)
+	assert.Equal(t, "io.example", transport.GetSupplyChain().GetPublisher())
+	assert.Equal(t, int64(268435456), transport.GetResources().GetMemoryBytes())
+	assert.Equal(t, uint32(4), transport.GetResources().GetMaxConcurrency())
+}
+
+func TestDocumentParserRequiresEveryInputDataPermission(t *testing.T) {
+	_, err := ParseManifest([]byte(`
+apiVersion: weknora.io/v1
+kind: Plugin
+metadata:
+  id: io.example.parser.test
+  name: Test parser
+  version: 1.0.0
+spec:
+  protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
+  image: ghcr.io/example/parser:1.0.0
+  types: [document_parser]
+  capabilities: [file_type:pdf]
+  config:
+    schema:
+      type: object
+      properties: {}
+  permissions:
+    network: false
+    dataAccess: [document_content]
+`))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "document_metadata")
 }
 
 func TestNegotiateProtocol(t *testing.T) {

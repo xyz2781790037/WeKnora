@@ -9,6 +9,7 @@ import (
 
 	pluginv1 "github.com/Tencent/WeKnora/api/proto/plugin/v1"
 	"github.com/Tencent/WeKnora/internal/config"
+	"github.com/Tencent/WeKnora/internal/plugin/runtimeauth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -54,6 +55,9 @@ func New(cfg *config.Config) (*Client, error) {
 	}
 	if strings.TrimSpace(cfg.PluginRuntime.AuthToken) == "" {
 		return nil, errors.New("plugin runtime auth token is required when enabled")
+	}
+	if err := runtimeauth.Validate(cfg.PluginRuntime.AuthToken); err != nil {
+		return nil, err
 	}
 
 	options := []grpc.DialOption{

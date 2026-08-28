@@ -27,6 +27,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/models/provider"
 	"github.com/Tencent/WeKnora/internal/models/rerank"
 	"github.com/Tencent/WeKnora/internal/models/utils/ollama"
+	pluginmodel "github.com/Tencent/WeKnora/internal/plugin/model"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/Tencent/WeKnora/internal/utils"
@@ -1857,7 +1858,10 @@ func (h *InitializationHandler) TestEmbeddingModel(c *gin.Context) {
 	}
 
 	model := h.buildTestModel(&req, types.ModelTypeEmbedding, types.ModelSourceRemote)
-	emb, err := embedding.NewEmbedder(embedding.ConfigFromModel(model, appID, appSecret), h.pooler, h.ollamaService)
+	emb, matched, err := pluginmodel.NewEmbedder(model)
+	if !matched && err == nil {
+		emb, err = embedding.NewEmbedder(embedding.ConfigFromModel(model, appID, appSecret), h.pooler, h.ollamaService)
+	}
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{"model": utils.SanitizeForLog(req.ModelName)})
 		c.JSON(http.StatusOK, gin.H{
@@ -1913,7 +1917,10 @@ func classifyConnectionError(errMsg string) string {
 func (h *InitializationHandler) checkChatModelConnection(
 	ctx context.Context, model *types.Model, appID, appSecret string,
 ) (bool, string) {
-	chatInstance, err := chat.NewChat(chat.ConfigFromModel(model, appID, appSecret), h.ollamaService)
+	chatInstance, matched, err := pluginmodel.NewChat(model)
+	if !matched && err == nil {
+		chatInstance, err = chat.NewChat(chat.ConfigFromModel(model, appID, appSecret), h.ollamaService)
+	}
 	if err != nil {
 		return false, fmt.Sprintf("创建聊天实例失败: %v", err)
 	}
@@ -1949,7 +1956,10 @@ func (h *InitializationHandler) checkChatModelConnection(
 func (h *InitializationHandler) checkRerankModelConnection(
 	ctx context.Context, model *types.Model, appID, appSecret string,
 ) (bool, string) {
-	reranker, err := rerank.NewReranker(rerank.ConfigFromModel(model, appID, appSecret))
+	reranker, matched, err := pluginmodel.NewReranker(model)
+	if !matched && err == nil {
+		reranker, err = rerank.NewReranker(rerank.ConfigFromModel(model, appID, appSecret))
+	}
 	if err != nil {
 		return false, fmt.Sprintf("创建Reranker失败: %v", err)
 	}

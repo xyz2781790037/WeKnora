@@ -3,10 +3,12 @@ package provider
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/Tencent/WeKnora/internal/types"
+	pluginsdk "github.com/Tencent/WeKnora/sdk/plugin/go"
 )
 
 // ProviderName 模型服务商名称
@@ -106,6 +108,8 @@ type ProviderInfo struct {
 	ModelTypes   []types.ModelType          // 支持的模型类型
 	RequiresAuth bool                       // 是否需要 API key
 	ExtraFields  []ExtraFieldConfig         // 额外配置字段
+	ConfigSchema map[string]any             // external plugin JSON Schema
+	SecretFields []string                   // external plugin credential fields
 }
 
 // GetDefaultURL 获取指定模型类型的默认 URL
@@ -139,6 +143,7 @@ type Config struct {
 	Provider  ProviderName   `json:"provider"`
 	BaseURL   string         `json:"base_url"`
 	APIKey    string         `json:"api_key"`
+	AppSecret string         `json:"app_secret"`
 	ModelName string         `json:"model_name"`
 	ModelID   string         `json:"model_id"`
 	Extra     map[string]any `json:"extra,omitempty"`
@@ -163,6 +168,48 @@ func Register(p Provider) {
 	registryMu.Lock()
 	defer registryMu.Unlock()
 	registry[p.Info().Name] = p
+}
+
+type externalProvider struct {
+	info ProviderInfo
+}
+
+func (p *externalProvider) Info() ProviderInfo { return p.info }
+func (p *externalProvider) ValidateConfig(config *Config) error {
+	if p.info.RequiresAuth && (config == nil || strings.TrimSpace(config.APIKey) == "") {
+		return fmt.Errorf("API key is required for %s", p.info.DisplayName)
+	}
+	values := make(map[string]any)
+	if config != nil {
+		for key, value := range config.Extra {
+			values[key] = value
+		}
+		values["base_url"] = config.BaseURL
+		values["api_key"] = config.APIKey
+		values["app_secret"] = config.AppSecret
+	}
+	for key, value := range values {
+		if text, ok := value.(string); ok && strings.TrimSpace(text) == "" {
+			delete(values, key)
+		}
+	}
+	if len(p.info.ConfigSchema) > 0 {
+		values = pluginsdk.NormalizeConfigValues(p.info.ConfigSchema, values)
+		if err := pluginsdk.ValidateConfigValues(p.info.ConfigSchema, values); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func RegisterExternal(info ProviderInfo) {
+	Register(&externalProvider{info: info})
+}
+
+func Unregister(name ProviderName) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	delete(registry, name)
 }
 
 // Get 通过名称从注册表中获取提供者
@@ -190,11 +237,21 @@ func List() []ProviderInfo {
 	defer registryMu.RUnlock()
 
 	result := make([]ProviderInfo, 0, len(registry))
+	seen := make(map[ProviderName]bool, len(registry))
 	for _, name := range AllProviders() {
 		if p, ok := registry[name]; ok {
 			result = append(result, p.Info())
+			seen[name] = true
 		}
 	}
+	external := make([]ProviderInfo, 0)
+	for name, item := range registry {
+		if !seen[name] {
+			external = append(external, item.Info())
+		}
+	}
+	sort.Slice(external, func(i, j int) bool { return external[i].DisplayName < external[j].DisplayName })
+	result = append(result, external...)
 	return result
 }
 
@@ -204,8 +261,10 @@ func ListByModelType(modelType types.ModelType) []ProviderInfo {
 	defer registryMu.RUnlock()
 
 	result := make([]ProviderInfo, 0)
+	seen := make(map[ProviderName]bool, len(registry))
 	for _, name := range AllProviders() {
 		if p, ok := registry[name]; ok {
+			seen[name] = true
 			info := p.Info()
 			for _, t := range info.ModelTypes {
 				if t == modelType {
@@ -215,6 +274,21 @@ func ListByModelType(modelType types.ModelType) []ProviderInfo {
 			}
 		}
 	}
+	external := make([]ProviderInfo, 0)
+	for name, item := range registry {
+		if seen[name] {
+			continue
+		}
+		info := item.Info()
+		for _, supportedType := range info.ModelTypes {
+			if supportedType == modelType {
+				external = append(external, info)
+				break
+			}
+		}
+	}
+	sort.Slice(external, func(i, j int) bool { return external[i].DisplayName < external[j].DisplayName })
+	result = append(result, external...)
 	return result
 }
 

@@ -835,6 +835,7 @@ const (
 	PluginRuntime_Uninstall_FullMethodName    = "/weknora.plugin.v1.PluginRuntime/Uninstall"
 	PluginRuntime_GetStatus_FullMethodName    = "/weknora.plugin.v1.PluginRuntime/GetStatus"
 	PluginRuntime_ListStatuses_FullMethodName = "/weknora.plugin.v1.PluginRuntime/ListStatuses"
+	PluginRuntime_ListEvents_FullMethodName   = "/weknora.plugin.v1.PluginRuntime/ListEvents"
 	PluginRuntime_WatchEvents_FullMethodName  = "/weknora.plugin.v1.PluginRuntime/WatchEvents"
 )
 
@@ -852,6 +853,7 @@ type PluginRuntimeClient interface {
 	Uninstall(ctx context.Context, in *PluginTargetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetStatus(ctx context.Context, in *PluginTargetRequest, opts ...grpc.CallOption) (*PluginRuntimeStatus, error)
 	ListStatuses(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListPluginStatusesResponse, error)
+	ListEvents(ctx context.Context, in *ListRuntimeEventsRequest, opts ...grpc.CallOption) (*ListRuntimeEventsResponse, error)
 	WatchEvents(ctx context.Context, in *WatchRuntimeEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RuntimeEvent], error)
 }
 
@@ -933,6 +935,16 @@ func (c *pluginRuntimeClient) ListStatuses(ctx context.Context, in *emptypb.Empt
 	return out, nil
 }
 
+func (c *pluginRuntimeClient) ListEvents(ctx context.Context, in *ListRuntimeEventsRequest, opts ...grpc.CallOption) (*ListRuntimeEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRuntimeEventsResponse)
+	err := c.cc.Invoke(ctx, PluginRuntime_ListEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *pluginRuntimeClient) WatchEvents(ctx context.Context, in *WatchRuntimeEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RuntimeEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &PluginRuntime_ServiceDesc.Streams[0], PluginRuntime_WatchEvents_FullMethodName, cOpts...)
@@ -966,6 +978,7 @@ type PluginRuntimeServer interface {
 	Uninstall(context.Context, *PluginTargetRequest) (*emptypb.Empty, error)
 	GetStatus(context.Context, *PluginTargetRequest) (*PluginRuntimeStatus, error)
 	ListStatuses(context.Context, *emptypb.Empty) (*ListPluginStatusesResponse, error)
+	ListEvents(context.Context, *ListRuntimeEventsRequest) (*ListRuntimeEventsResponse, error)
 	WatchEvents(*WatchRuntimeEventsRequest, grpc.ServerStreamingServer[RuntimeEvent]) error
 	mustEmbedUnimplementedPluginRuntimeServer()
 }
@@ -997,6 +1010,9 @@ func (UnimplementedPluginRuntimeServer) GetStatus(context.Context, *PluginTarget
 }
 func (UnimplementedPluginRuntimeServer) ListStatuses(context.Context, *emptypb.Empty) (*ListPluginStatusesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListStatuses not implemented")
+}
+func (UnimplementedPluginRuntimeServer) ListEvents(context.Context, *ListRuntimeEventsRequest) (*ListRuntimeEventsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListEvents not implemented")
 }
 func (UnimplementedPluginRuntimeServer) WatchEvents(*WatchRuntimeEventsRequest, grpc.ServerStreamingServer[RuntimeEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchEvents not implemented")
@@ -1148,6 +1164,24 @@ func _PluginRuntime_ListStatuses_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PluginRuntime_ListEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRuntimeEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginRuntimeServer).ListEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginRuntime_ListEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginRuntimeServer).ListEvents(ctx, req.(*ListRuntimeEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PluginRuntime_WatchEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchRuntimeEventsRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -1193,6 +1227,10 @@ var PluginRuntime_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListStatuses",
 			Handler:    _PluginRuntime_ListStatuses_Handler,
+		},
+		{
+			MethodName: "ListEvents",
+			Handler:    _PluginRuntime_ListEvents_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

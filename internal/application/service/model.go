@@ -15,6 +15,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/models/rerank"
 	"github.com/Tencent/WeKnora/internal/models/utils/ollama"
 	"github.com/Tencent/WeKnora/internal/models/vlm"
+	pluginmodel "github.com/Tencent/WeKnora/internal/plugin/model"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/Tencent/WeKnora/internal/utils"
@@ -98,6 +99,22 @@ func (s *modelService) resolveWeKnoraCloudCredentials(ctx context.Context, param
 // Remote models are immediately set to active status
 func (s *modelService) CreateModel(ctx context.Context, model *types.Model) error {
 	logger.Infof(ctx, "Creating model: %s, type: %s, source: %s", model.Name, model.Type, model.Source)
+	if model.Source == types.ModelSourceRemote {
+		if registered, ok := provider.Get(provider.ProviderName(model.Parameters.Provider)); ok {
+			extra := make(map[string]any, len(model.Parameters.ExtraConfig))
+			for key, value := range model.Parameters.ExtraConfig {
+				extra[key] = value
+			}
+			if err := registered.ValidateConfig(&provider.Config{
+				Provider: provider.ProviderName(model.Parameters.Provider),
+				BaseURL:  model.Parameters.BaseURL, APIKey: model.Parameters.APIKey,
+				AppSecret: model.Parameters.AppSecret, ModelName: model.Name, ModelID: model.ID,
+				Extra: extra,
+			}); err != nil {
+				return fmt.Errorf("invalid model provider configuration: %w", err)
+			}
+		}
+	}
 
 	// Handle remote models (e.g., OpenAI, Azure)
 	if model.Source == types.ModelSourceRemote {
@@ -248,6 +265,22 @@ func (s *modelService) UpdateModel(ctx context.Context, model *types.Model) erro
 		model.TenantID = existingModel.TenantID
 		model.IsBuiltin = true
 		model.ManagedBy = ""
+	}
+	if model.Source == types.ModelSourceRemote {
+		if registered, ok := provider.Get(provider.ProviderName(model.Parameters.Provider)); ok {
+			extra := make(map[string]any, len(model.Parameters.ExtraConfig))
+			for key, value := range model.Parameters.ExtraConfig {
+				extra[key] = value
+			}
+			if err := registered.ValidateConfig(&provider.Config{
+				Provider: provider.ProviderName(model.Parameters.Provider),
+				BaseURL:  model.Parameters.BaseURL, APIKey: model.Parameters.APIKey,
+				AppSecret: model.Parameters.AppSecret, ModelName: model.Name, ModelID: model.ID,
+				Extra: extra,
+			}); err != nil {
+				return fmt.Errorf("invalid model provider configuration: %w", err)
+			}
+		}
 	}
 
 	// Update model in repository
@@ -442,6 +475,9 @@ func (s *modelService) GetEmbeddingModel(ctx context.Context, modelId string) (e
 	}
 
 	logger.Infof(ctx, "Getting embedding model: %s, source: %s", model.Name, model.Source)
+	if external, ok, externalErr := pluginmodel.NewEmbedder(model); ok || externalErr != nil {
+		return external, externalErr
+	}
 
 	appID, appSecret := s.resolveWeKnoraCloudCredentials(ctx, &model.Parameters)
 
@@ -489,6 +525,9 @@ func (s *modelService) GetEmbeddingModelForTenant(ctx context.Context, modelId s
 	}
 
 	logger.Infof(ctx, "Getting cross-tenant embedding model: %s, source: %s, tenant: %d", model.Name, model.Source, tenantID)
+	if external, ok, externalErr := pluginmodel.NewEmbedder(model); ok || externalErr != nil {
+		return external, externalErr
+	}
 
 	appID, appSecret := s.resolveWeKnoraCloudCredentials(ctx, &model.Parameters)
 
@@ -519,6 +558,9 @@ func (s *modelService) GetRerankModel(ctx context.Context, modelId string) (rera
 	}
 
 	logger.Infof(ctx, "Getting rerank model: %s, source: %s", model.Name, model.Source)
+	if external, ok, externalErr := pluginmodel.NewReranker(model); ok || externalErr != nil {
+		return external, externalErr
+	}
 
 	appID, appSecret := s.resolveWeKnoraCloudCredentials(ctx, &model.Parameters)
 
@@ -562,6 +604,9 @@ func (s *modelService) GetChatModel(ctx context.Context, modelId string) (chat.C
 	}
 
 	logger.Infof(ctx, "Getting chat model: %s, source: %s", model.Name, model.Source)
+	if external, ok, externalErr := pluginmodel.NewChat(model); ok || externalErr != nil {
+		return external, externalErr
+	}
 
 	appID, appSecret := s.resolveWeKnoraCloudCredentials(ctx, &model.Parameters)
 

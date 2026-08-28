@@ -3754,6 +3754,9 @@ func isLikelyRateLimitError(err error) bool {
 
 // Returns nil when the required service is unavailable.
 func (s *knowledgeService) resolveDocReader(ctx context.Context, engine, fileType string, isURL bool, overrides map[string]string) interfaces.DocReader {
+	if reader, ok := docparser.ExternalReader(engine, overrides); ok {
+		return reader
+	}
 	switch engine {
 	case docparser.SimpleEngineName:
 		return &docparser.SimpleFormatReader{}

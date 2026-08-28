@@ -3,11 +3,13 @@ package plugin
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -29,6 +31,8 @@ const (
 )
 
 var pluginIDPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9.-]{1,126}[a-z0-9])$`)
+var publisherPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,127})$`)
+var imageDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
 // Manifest is the portable plugin.yaml representation. It intentionally keeps
 // runtime concerns out of the type so the same file can be validated by the
@@ -60,6 +64,8 @@ type ManifestSpec struct {
 	Icon                     string              `yaml:"icon" json:"icon"`
 	Config                   ManifestConfig      `yaml:"config" json:"config"`
 	Permissions              ManifestPermissions `yaml:"permissions" json:"permissions"`
+	SupplyChain              ManifestSupplyChain `yaml:"supplyChain" json:"supply_chain"`
+	Resources                ManifestResources   `yaml:"resources" json:"resources"`
 	DefaultTimeout           time.Duration       `yaml:"-" json:"-"`
 	DefaultTimeoutText       string              `yaml:"defaultTimeout" json:"default_timeout"`
 }
@@ -77,6 +83,24 @@ type ManifestPermissions struct {
 	Network      bool     `yaml:"network" json:"network"`
 	AllowedHosts []string `yaml:"allowedHosts" json:"allowed_hosts"`
 	DataAccess   []string `yaml:"dataAccess" json:"data_access"`
+}
+
+// ManifestSupplyChain binds the manifest to an immutable signed image.
+type ManifestSupplyChain struct {
+	Publisher        string `yaml:"publisher" json:"publisher"`
+	SourceRepository string `yaml:"sourceRepository" json:"source_repository"`
+	ImageDigest      string `yaml:"imageDigest" json:"image_digest"`
+	Signature        string `yaml:"signature" json:"signature"`
+}
+
+// ManifestResources requests per-plugin limits. Zero values inherit the
+// plugin-runtime defaults; the runtime rejects requests above its global caps.
+type ManifestResources struct {
+	MemoryBytes    int64  `yaml:"memoryBytes" json:"memory_bytes"`
+	NanoCPUs       int64  `yaml:"nanoCPUs" json:"nano_cpus"`
+	PIDsLimit      int64  `yaml:"pidsLimit" json:"pids_limit"`
+	MaxConcurrency uint32 `yaml:"maxConcurrency" json:"max_concurrency"`
+	CallsPerMinute uint32 `yaml:"callsPerMinute" json:"calls_per_minute"`
 }
 
 // ParseManifest decodes and validates one plugin.yaml document.
@@ -126,6 +150,12 @@ func (m *Manifest) Validate() error {
 	if _, err := semver.Parse(strings.TrimPrefix(m.Spec.ProtocolVersion, "v")); err != nil {
 		return fmt.Errorf("invalid protocolVersion %q: %w", m.Spec.ProtocolVersion, err)
 	}
+	if strings.TrimSpace(m.Spec.WeKnoraVersionConstraint) == "" {
+		return errors.New("weknoraVersion is required")
+	}
+	if _, err := semver.ParseRange(strings.TrimSpace(m.Spec.WeKnoraVersionConstraint)); err != nil {
+		return fmt.Errorf("invalid weknoraVersion %q: %w", m.Spec.WeKnoraVersionConstraint, err)
+	}
 	if strings.TrimSpace(m.Spec.Image) == "" {
 		return errors.New("plugin image is required")
 	}
@@ -151,6 +181,9 @@ func (m *Manifest) Validate() error {
 	if _, err := json.Marshal(m.Spec.Config.Schema); err != nil {
 		return fmt.Errorf("config.schema is not valid JSON data: %w", err)
 	}
+	if err := ValidateConfigSchema(m.Spec.Config.Schema); err != nil {
+		return err
+	}
 	properties, _ := m.Spec.Config.Schema["properties"].(map[string]any)
 	secretFields := make(map[string]struct{}, len(m.Spec.Config.SecretFields))
 	for _, rawField := range m.Spec.Config.SecretFields {
@@ -166,6 +199,14 @@ func (m *Manifest) Validate() error {
 		}
 		secretFields[field] = struct{}{}
 	}
+	if err := validateTypeConfigContract(
+		typeSet,
+		m.Spec.Config.SecretFields,
+		m.Spec.Capabilities,
+		m.Spec.Permissions.DataAccess,
+	); err != nil {
+		return err
+	}
 
 	if !m.Spec.Permissions.Network && len(m.Spec.Permissions.AllowedHosts) > 0 {
 		return errors.New("allowedHosts must be empty when network permission is false")
@@ -179,6 +220,12 @@ func (m *Manifest) Validate() error {
 		if _, ok := dataAccessToProto[normalizeDataAccess(access)]; !ok {
 			return fmt.Errorf("unsupported dataAccess value %q", access)
 		}
+	}
+	if err := validateSupplyChain(m.Spec.SupplyChain); err != nil {
+		return err
+	}
+	if m.Spec.Resources.MemoryBytes < 0 || m.Spec.Resources.NanoCPUs < 0 || m.Spec.Resources.PIDsLimit < 0 {
+		return errors.New("plugin resource limits cannot be negative")
 	}
 
 	if m.Spec.DefaultTimeoutText == "" {
@@ -212,7 +259,7 @@ func (m *Manifest) ToProto() (*pluginv1.PluginManifest, error) {
 		access = append(access, dataAccessToProto[normalizeDataAccess(value)])
 	}
 
-	return &pluginv1.PluginManifest{
+	result := &pluginv1.PluginManifest{
 		Id:                       m.Metadata.ID,
 		Name:                     m.Metadata.Name,
 		Description:              m.Metadata.Description,
@@ -234,7 +281,58 @@ func (m *Manifest) ToProto() (*pluginv1.PluginManifest, error) {
 		DefaultTimeout: durationpb.New(m.Spec.DefaultTimeout),
 		ConnectorType:  m.Spec.ConnectorType,
 		Icon:           m.Spec.Icon,
-	}, nil
+	}
+	if hasSupplyChain(m.Spec.SupplyChain) {
+		result.SupplyChain = &pluginv1.PluginSupplyChain{
+			Publisher:        strings.TrimSpace(m.Spec.SupplyChain.Publisher),
+			SourceRepository: strings.TrimSpace(m.Spec.SupplyChain.SourceRepository),
+			ImageDigest:      strings.TrimSpace(m.Spec.SupplyChain.ImageDigest),
+			Signature:        strings.TrimSpace(m.Spec.SupplyChain.Signature),
+		}
+	}
+	if m.Spec.Resources != (ManifestResources{}) {
+		result.Resources = &pluginv1.PluginResourceLimits{
+			MemoryBytes:    m.Spec.Resources.MemoryBytes,
+			NanoCpus:       m.Spec.Resources.NanoCPUs,
+			PidsLimit:      m.Spec.Resources.PIDsLimit,
+			MaxConcurrency: m.Spec.Resources.MaxConcurrency,
+			CallsPerMinute: m.Spec.Resources.CallsPerMinute,
+		}
+	}
+	return result, nil
+}
+
+func hasSupplyChain(value ManifestSupplyChain) bool {
+	return strings.TrimSpace(value.Publisher) != "" ||
+		strings.TrimSpace(value.SourceRepository) != "" ||
+		strings.TrimSpace(value.ImageDigest) != "" ||
+		strings.TrimSpace(value.Signature) != ""
+}
+
+func validateSupplyChain(value ManifestSupplyChain) error {
+	if !hasSupplyChain(value) {
+		return nil
+	}
+	publisher := strings.TrimSpace(value.Publisher)
+	if !publisherPattern.MatchString(publisher) {
+		return fmt.Errorf("invalid supplyChain.publisher %q", value.Publisher)
+	}
+	if !imageDigestPattern.MatchString(strings.TrimSpace(value.ImageDigest)) {
+		return errors.New("supplyChain.imageDigest must be sha256:<64 lowercase hex characters>")
+	}
+	if source := strings.TrimSpace(value.SourceRepository); source != "" {
+		parsed, err := url.Parse(source)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+			return errors.New("supplyChain.sourceRepository must be an absolute HTTPS URL")
+		}
+	}
+	if signature := strings.TrimSpace(value.Signature); signature != "" {
+		decoded, err := base64.StdEncoding.DecodeString(signature)
+		if err != nil || len(decoded) != 64 {
+			return errors.New("supplyChain.signature must be a base64 Ed25519 signature")
+		}
+	}
+	return nil
 }
 
 // NegotiateProtocol returns the highest mutually supported protocol version.

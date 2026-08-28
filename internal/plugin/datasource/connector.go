@@ -21,6 +21,7 @@ import (
 	core "github.com/Tencent/WeKnora/internal/datasource"
 	"github.com/Tencent/WeKnora/internal/plugin/runtimeclient"
 	"github.com/Tencent/WeKnora/internal/types"
+	pluginsdk "github.com/Tencent/WeKnora/sdk/plugin/go"
 )
 
 const (
@@ -34,10 +35,11 @@ type Connector struct {
 	pluginID      string
 	connectorType string
 	runtime       runtimeclient.Gateway
+	configSchema  map[string]any
 	maxBytes      int64
 }
 
-func NewConnector(pluginID, connectorType string, runtime runtimeclient.Gateway) (*Connector, error) {
+func NewConnector(pluginID, connectorType string, runtime runtimeclient.Gateway, configSchema map[string]any) (*Connector, error) {
 	pluginID = strings.TrimSpace(pluginID)
 	connectorType = strings.TrimSpace(connectorType)
 	if pluginID == "" || connectorType == "" || runtime == nil {
@@ -47,6 +49,7 @@ func NewConnector(pluginID, connectorType string, runtime runtimeclient.Gateway)
 		pluginID:      pluginID,
 		connectorType: connectorType,
 		runtime:       runtime,
+		configSchema:  configSchema,
 		maxBytes:      configuredMaxDocumentBytes(),
 	}, nil
 }
@@ -54,6 +57,13 @@ func NewConnector(pluginID, connectorType string, runtime runtimeclient.Gateway)
 func (c *Connector) Type() string { return c.connectorType }
 
 func (c *Connector) Validate(ctx context.Context, config *types.DataSourceConfig) error {
+	values, err := mergePluginConfig(config)
+	if err != nil {
+		return err
+	}
+	if err := pluginsdk.ValidateConfigValues(c.configSchema, values); err != nil {
+		return fmt.Errorf("%w: %s", core.ErrInvalidConfig, err)
+	}
 	client, err := c.runtime.Lifecycle()
 	if err != nil {
 		return err
@@ -183,6 +193,9 @@ func (c *Connector) fetchStream(
 	resourceIDs []string,
 	handler core.StreamHandler,
 ) (*types.SyncCursor, error) {
+	if handler == nil {
+		return cursor, errors.New("plugin stream handler is required")
+	}
 	client, err := c.runtime.DataSource()
 	if err != nil {
 		return nil, err
@@ -422,6 +435,14 @@ func stringMapToAny(values map[string]string) map[string]interface{} {
 }
 
 func encodePluginConfig(config *types.DataSourceConfig) ([]byte, error) {
+	values, err := mergePluginConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(values)
+}
+
+func mergePluginConfig(config *types.DataSourceConfig) (map[string]any, error) {
 	values := make(map[string]interface{})
 	if config != nil {
 		for key, value := range config.Settings {
@@ -434,7 +455,7 @@ func encodePluginConfig(config *types.DataSourceConfig) ([]byte, error) {
 			values[key] = value
 		}
 	}
-	return json.Marshal(values)
+	return values, nil
 }
 
 func configuredMaxDocumentBytes() int64 {
@@ -444,6 +465,9 @@ func configuredMaxDocumentBytes() int64 {
 	}
 	megabytes, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || megabytes <= 0 {
+		return defaultMaxDocumentBytes
+	}
+	if megabytes > (1<<63-1)/(1024*1024) {
 		return defaultMaxDocumentBytes
 	}
 	return megabytes * 1024 * 1024

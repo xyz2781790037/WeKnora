@@ -1,9 +1,12 @@
 package docparser
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/Tencent/WeKnora/internal/types"
+	"github.com/Tencent/WeKnora/internal/types/interfaces"
 )
 
 // EngineRegistration is the interface every locally registered parser engine
@@ -17,11 +20,89 @@ type EngineRegistration interface {
 }
 
 // localEngines holds all locally registered parser engines.
-var localEngines []EngineRegistration
+var (
+	engineMu        sync.RWMutex
+	localEngines    []EngineRegistration
+	externalReaders = make(map[string]func(map[string]string) interfaces.DocReader)
+)
 
 // RegisterEngine adds an engine to the local registry. Called in init().
 func RegisterEngine(e EngineRegistration) {
+	engineMu.Lock()
+	defer engineMu.Unlock()
 	localEngines = append(localEngines, e)
+}
+
+type externalEngine struct {
+	name, description string
+	fileTypes         []string
+	configSchema      map[string]any
+	secretFields      []string
+	pluginID          string
+}
+
+func (e *externalEngine) Name() string                                        { return e.name }
+func (e *externalEngine) Description() string                                 { return e.description }
+func (e *externalEngine) FileTypes(bool) []string                             { return append([]string(nil), e.fileTypes...) }
+func (*externalEngine) CheckAvailable(bool, map[string]string) (bool, string) { return true, "" }
+
+// RegisterExternalEngine keeps the original registration API for internal
+// callers that do not expose manifest-driven configuration.
+func RegisterExternalEngine(name, description string, fileTypes []string, factory func(map[string]string) interfaces.DocReader) error {
+	return RegisterExternalEngineWithMetadata(name, description, fileTypes, nil, nil, factory)
+}
+
+// RegisterExternalEngineWithMetadata registers an external parser together
+// with the schema rendered by the shared plugin configuration form.
+func RegisterExternalEngineWithMetadata(name, description string, fileTypes []string, configSchema map[string]any, secretFields []string, factory func(map[string]string) interfaces.DocReader) error {
+	name = strings.TrimSpace(name)
+	if name == "" || factory == nil {
+		return fmt.Errorf("external parser engine name and factory are required")
+	}
+	engineMu.Lock()
+	defer engineMu.Unlock()
+	for _, engine := range localEngines {
+		if engine.Name() == name {
+			if _, external := externalReaders[name]; !external {
+				return fmt.Errorf("parser engine %s conflicts with a built-in engine", name)
+			}
+			for index, existing := range localEngines {
+				if existing.Name() == name {
+					localEngines[index] = &externalEngine{name: name, description: description, fileTypes: append([]string(nil), fileTypes...), configSchema: configSchema, secretFields: append([]string(nil), secretFields...), pluginID: name}
+					externalReaders[name] = factory
+					return nil
+				}
+			}
+		}
+	}
+	localEngines = append(localEngines, &externalEngine{name: name, description: description, fileTypes: append([]string(nil), fileTypes...), configSchema: configSchema, secretFields: append([]string(nil), secretFields...), pluginID: name})
+	externalReaders[name] = factory
+	return nil
+}
+
+func UnregisterExternalEngine(name string) {
+	engineMu.Lock()
+	defer engineMu.Unlock()
+	if _, ok := externalReaders[name]; !ok {
+		return
+	}
+	delete(externalReaders, name)
+	for index, engine := range localEngines {
+		if engine.Name() == name {
+			localEngines = append(localEngines[:index], localEngines[index+1:]...)
+			return
+		}
+	}
+}
+
+func ExternalReader(name string, overrides map[string]string) (interfaces.DocReader, bool) {
+	engineMu.RLock()
+	factory, ok := externalReaders[name]
+	engineMu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	return factory(overrides), true
 }
 
 func init() {
@@ -188,15 +269,18 @@ func (e *paddleOCRVLCloudEngine) CheckAvailable(_ bool, overrides map[string]str
 //   - Remote engines not present locally are appended as-is, enabling
 //     auto-discovery of newly added docreader engines without Go changes.
 func ListAllEngines(docreaderConnected bool, overrides map[string]string, remoteEngines []types.ParserEngineInfo) []types.ParserEngineInfo {
+	engineMu.RLock()
+	engines := append([]EngineRegistration(nil), localEngines...)
+	engineMu.RUnlock()
 	remoteMap := make(map[string]types.ParserEngineInfo, len(remoteEngines))
 	for _, re := range remoteEngines {
 		remoteMap[re.Name] = re
 	}
 
 	seen := make(map[string]bool, len(localEngines))
-	result := make([]types.ParserEngineInfo, 0, len(localEngines)+len(remoteEngines))
+	result := make([]types.ParserEngineInfo, 0, len(engines)+len(remoteEngines))
 
-	for _, e := range localEngines {
+	for _, e := range engines {
 		name := e.Name()
 		seen[name] = true
 
@@ -213,13 +297,20 @@ func ListAllEngines(docreaderConnected bool, overrides map[string]string, remote
 		}
 
 		available, reason := e.CheckAvailable(docreaderConnected, overrides)
-		result = append(result, types.ParserEngineInfo{
+		info := types.ParserEngineInfo{
 			Name:              name,
 			Description:       description,
 			FileTypes:         fileTypes,
 			Available:         available,
 			UnavailableReason: reason,
-		})
+		}
+		if external, ok := e.(*externalEngine); ok {
+			info.Origin = types.PluginOriginExternal
+			info.PluginID = external.pluginID
+			info.ConfigSchema = external.configSchema
+			info.SecretFields = append([]string(nil), external.secretFields...)
+		}
+		result = append(result, info)
 	}
 
 	for _, re := range remoteEngines {

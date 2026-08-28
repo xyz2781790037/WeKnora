@@ -146,6 +146,7 @@ type WebSearchProviderTypeInfo struct {
 	DocsURL string `json:"docs_url,omitempty"`
 	// Provider-specific non-secret configuration rendered dynamically by the frontend.
 	ConfigFields []WebSearchProviderConfigField `json:"config_fields,omitempty"`
+	ConfigSchema map[string]any                 `json:"config_schema,omitempty"`
 }
 
 // WebSearchProviderConfigField describes a non-secret provider-specific form field.

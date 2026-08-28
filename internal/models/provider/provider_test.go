@@ -30,6 +30,32 @@ func TestProviderRegistry(t *testing.T) {
 	})
 }
 
+func TestExternalProviderLifecycle(t *testing.T) {
+	const name ProviderName = "io.example.model"
+	t.Cleanup(func() { Unregister(name) })
+	RegisterExternal(ProviderInfo{
+		Name: name, DisplayName: "Example Model", ModelTypes: []types.ModelType{types.ModelTypeKnowledgeQA}, RequiresAuth: true,
+	})
+
+	registered, ok := Get(name)
+	require.True(t, ok)
+	assert.Equal(t, "Example Model", registered.Info().DisplayName)
+	assert.Error(t, registered.ValidateConfig(&Config{}))
+	assert.NoError(t, registered.ValidateConfig(&Config{APIKey: "secret"}))
+
+	found := false
+	for _, info := range ListByModelType(types.ModelTypeKnowledgeQA) {
+		if info.Name == name {
+			found = true
+		}
+	}
+	assert.True(t, found)
+
+	Unregister(name)
+	_, ok = Get(name)
+	assert.False(t, ok)
+}
+
 func TestDetectProvider(t *testing.T) {
 	tests := []struct {
 		url      string

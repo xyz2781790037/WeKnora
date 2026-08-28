@@ -306,9 +306,10 @@ func (c *CredentialsConfig) Scan(value interface{}) error {
 type ParserEngineConfig struct {
 	// ChatParserEngineRules selects parser engines for session-scoped chat
 	// documents. Knowledge bases keep their own rules in ChunkingConfig.
-	ChatParserEngineRules []ParserEngineRule `json:"chat_parser_engine_rules,omitempty"`
-	MinerUEndpoint        string             `json:"mineru_endpoint"` // MinerU 自建服务端点
-	MinerUAPIKey          string             `json:"mineru_api_key"`  // MinerU 云 API Key
+	ChatParserEngineRules []ParserEngineRule        `json:"chat_parser_engine_rules,omitempty"`
+	Plugin                map[string]map[string]any `json:"plugin,omitempty"`
+	MinerUEndpoint        string                    `json:"mineru_endpoint"` // MinerU 自建服务端点
+	MinerUAPIKey          string                    `json:"mineru_api_key"`  // MinerU 云 API Key
 
 	// MinerU 自建解析参数
 	MinerUModel         string `json:"mineru_model,omitempty"`          // backend: pipeline, vlm-*, hybrid-*
@@ -395,6 +396,17 @@ func (c *ParserEngineConfig) ToOverridesMap() map[string]string {
 		return nil
 	}
 	m := make(map[string]string)
+	for pluginID, values := range c.Plugin {
+		for key, value := range values {
+			if text, ok := value.(string); ok {
+				m["plugin."+pluginID+"."+key] = text
+				continue
+			}
+			if encoded, err := json.Marshal(value); err == nil {
+				m["plugin."+pluginID+"."+key] = string(encoded)
+			}
+		}
+	}
 	if c.MinerUEndpoint != "" {
 		m["mineru_endpoint"] = c.MinerUEndpoint
 	}

@@ -12,6 +12,7 @@ import (
 	pluginv1 "github.com/Tencent/WeKnora/api/proto/plugin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
 
@@ -116,6 +117,7 @@ func (s *Server) Serve(ctx context.Context, address string) error {
 	if s.modelProvider != nil {
 		pluginv1.RegisterModelProviderPluginServer(s.grpcServer, s)
 	}
+	reflection.Register(s.grpcServer)
 
 	serveErr := make(chan error, 1)
 	go func() {
@@ -194,6 +196,19 @@ func (s *Server) ValidateConfig(
 ) (*pluginv1.ValidateConfigResponse, error) {
 	if req == nil || len(req.ConfigJson) == 0 || !json.Valid(req.ConfigJson) {
 		return nil, status.Error(codes.InvalidArgument, "config_json must be valid JSON")
+	}
+	var values map[string]any
+	if err := json.Unmarshal(req.ConfigJson, &values); err != nil || values == nil {
+		return nil, status.Error(codes.InvalidArgument, "config_json must be a JSON object")
+	}
+	if err := ValidateConfigValues(s.manifest.Spec.Config.Schema, values); err != nil {
+		return &pluginv1.ValidateConfigResponse{
+			Valid: false,
+			Violations: []*pluginv1.FieldViolation{{
+				Field:       "$",
+				Description: err.Error(),
+			}},
+		}, nil
 	}
 	if s.hooks == nil {
 		return &pluginv1.ValidateConfigResponse{Valid: true}, nil
