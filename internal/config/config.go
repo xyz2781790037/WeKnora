@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/plugin/runtimeauth"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
@@ -591,7 +592,9 @@ func LoadConfig() (*Config, error) {
 	applyOIDCEnvOverrides(&cfg)
 	applyAgentEnvOverrides(&cfg)
 	applyKnowledgeBaseEnvOverrides(&cfg)
-	applyPluginRuntimeEnvOverrides(&cfg)
+	if err := applyPluginRuntimeEnvOverrides(&cfg); err != nil {
+		return nil, err
+	}
 	applyAuthAndTenantDefaults(&cfg)
 	applyAuditDefaults(&cfg)
 
@@ -779,7 +782,7 @@ func applyKnowledgeBaseEnvOverrides(cfg *Config) {
 	}
 }
 
-func applyPluginRuntimeEnvOverrides(cfg *Config) {
+func applyPluginRuntimeEnvOverrides(cfg *Config) error {
 	if cfg.PluginRuntime == nil {
 		cfg.PluginRuntime = &PluginRuntimeConfig{}
 	}
@@ -789,7 +792,11 @@ func applyPluginRuntimeEnvOverrides(cfg *Config) {
 	if value := strings.TrimSpace(os.Getenv("WEKNORA_PLUGIN_RUNTIME_ADDR")); value != "" {
 		cfg.PluginRuntime.Addr = value
 	}
-	cfg.PluginRuntime.AuthToken = strings.TrimSpace(os.Getenv("WEKNORA_PLUGIN_RUNTIME_AUTH_TOKEN"))
+	authToken, err := runtimeauth.Resolve()
+	if err != nil {
+		return fmt.Errorf("resolve plugin runtime auth token: %w", err)
+	}
+	cfg.PluginRuntime.AuthToken = authToken
 	if cfg.PluginRuntime.Addr == "" {
 		cfg.PluginRuntime.Addr = "127.0.0.1:9091"
 	}
@@ -801,6 +808,7 @@ func applyPluginRuntimeEnvOverrides(cfg *Config) {
 	if cfg.PluginRuntime.DialTimeout <= 0 {
 		cfg.PluginRuntime.DialTimeout = 5 * time.Second
 	}
+	return nil
 }
 
 func applyAgentEnvOverrides(cfg *Config) {

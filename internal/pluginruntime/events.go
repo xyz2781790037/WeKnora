@@ -51,6 +51,26 @@ func (b *eventBus) publish(pluginID, kind, message string, details map[string]st
 	}
 }
 
+func (b *eventBus) list(pluginID string, after uint64, limit uint32) []*pluginv1.RuntimeEvent {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if limit == 0 || limit > runtimeEventHistorySize {
+		limit = 100
+	}
+	result := make([]*pluginv1.RuntimeEvent, 0, limit)
+	for index := len(b.history) - 1; index >= 0 && len(result) < int(limit); index-- {
+		event := b.history[index]
+		if event.GetSequence() <= after || (pluginID != "" && event.GetPluginId() != pluginID) {
+			continue
+		}
+		result = append(result, event)
+	}
+	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
+		result[left], result[right] = result[right], result[left]
+	}
+	return result
+}
+
 func (b *eventBus) subscribe(after uint64) ([]*pluginv1.RuntimeEvent, uint64, <-chan *pluginv1.RuntimeEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

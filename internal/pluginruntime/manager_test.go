@@ -22,7 +22,7 @@ func validRuntimeManifest() *pluginv1.PluginManifest {
 		ProtocolVersion: "1.0.0",
 		Image:           "ghcr.io/example/test:0.1.0",
 		Types:           []pluginv1.PluginType{pluginv1.PluginType_PLUGIN_TYPE_DATA_SOURCE},
-		Config:          &pluginv1.ConfigSchema{JsonSchema: `{"type":"object"}`},
+		Config:          &pluginv1.ConfigSchema{JsonSchema: `{"type":"object","properties":{}}`},
 		Permissions:     &pluginv1.PluginPermissions{},
 	}
 }
@@ -62,6 +62,26 @@ func TestValidateInstallClonesAcceptedManifest(t *testing.T) {
 	if validated.GetName() != "Test Source" || image != manifest.Image || timeout != 45*time.Second {
 		t.Fatalf("unexpected validation result: %+v %s %s", validated, image, timeout)
 	}
+}
+
+func TestSameInstallRequestRequiresExactManifestAndTimeout(t *testing.T) {
+	manifest := validRuntimeManifest()
+	existing := &installation{Manifest: manifest, Image: manifest.Image, CallTimeout: time.Minute}
+	assert.True(t, sameInstallRequest(existing, proto.Clone(manifest).(*pluginv1.PluginManifest), manifest.Image, time.Minute))
+
+	changed := proto.Clone(manifest).(*pluginv1.PluginManifest)
+	changed.Permissions.Network = true
+	changed.Permissions.AllowedHosts = []string{"api.example.com"}
+	assert.False(t, sameInstallRequest(existing, changed, manifest.Image, time.Minute))
+	assert.False(t, sameInstallRequest(existing, manifest, manifest.Image, 2*time.Minute))
+}
+
+func TestValidateInstallRejectsMalformedConfigSchema(t *testing.T) {
+	manager := &Manager{config: Config{MaxCallTimeout: time.Hour}}
+	manifest := validRuntimeManifest()
+	manifest.Config.JsonSchema = `{"type":"object","properties":{},"required":"token"}`
+	_, _, _, err := manager.validateInstall(manifest, manifest.Image, durationpb.New(time.Minute))
+	require.ErrorContains(t, err, "required must be an array")
 }
 
 func TestVerifyHandshakeRequiresExactImageManifest(t *testing.T) {
@@ -173,6 +193,13 @@ type imagePolicyDocker struct {
 
 func (*imagePolicyDocker) ping(context.Context) error                          { return nil }
 func (*imagePolicyDocker) ensureInternalNetwork(context.Context, string) error { return nil }
+func (*imagePolicyDocker) connectContainerToNetwork(context.Context, string, string, []string) error {
+	return nil
+}
+func (*imagePolicyDocker) disconnectContainerFromNetwork(context.Context, string, string) error {
+	return nil
+}
+func (*imagePolicyDocker) removeNetwork(context.Context, string) error { return nil }
 func (d *imagePolicyDocker) pullImage(context.Context, string) error {
 	d.pullCalls++
 	return nil
@@ -189,4 +216,7 @@ func (*imagePolicyDocker) stopContainer(context.Context, string, time.Duration) 
 func (*imagePolicyDocker) removeContainer(context.Context, string) error { return nil }
 func (*imagePolicyDocker) containerState(context.Context, string) (bool, bool, error) {
 	return false, false, nil
+}
+func (*imagePolicyDocker) containerNetworkMode(context.Context, string) (string, error) {
+	return "", nil
 }

@@ -23,11 +23,13 @@ const (
 	dohRequestTimeout  = 10 * time.Second
 )
 
-// hostResolver resolves plugin destinations independently from the host DNS.
-// The returned address is still validated and pinned by the egress dialer.
-type hostResolver interface {
+// TrustedHostResolver resolves destinations independently from the host DNS.
+// Callers must still validate and pin every returned address before dialing.
+type TrustedHostResolver interface {
 	LookupNetIP(ctx context.Context, host string) ([]netip.Addr, error)
 }
+
+type hostResolver = TrustedHostResolver
 
 type dohResolver struct {
 	providers []dohProvider
@@ -74,6 +76,12 @@ func newTrustedResolver() hostResolver {
 		providers = append(providers, newDoHProvider(config))
 	}
 	return &dohResolver{providers: providers}
+}
+
+// NewTrustedHostResolver exposes the runtime's trusted DoH resolver to other
+// plugin infrastructure without weakening the process-wide SSRF policy.
+func NewTrustedHostResolver() TrustedHostResolver {
+	return newTrustedResolver()
 }
 
 func newDoHProvider(config dohProviderConfig) dohProvider {

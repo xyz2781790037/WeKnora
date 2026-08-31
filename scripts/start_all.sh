@@ -58,6 +58,9 @@ log_success() {
     printf "%b\n" "${GREEN}[SUCCESS]${NC} $1"
 }
 
+# shellcheck source=plugin-runtime-auth.sh
+source "$SCRIPT_DIR/plugin-runtime-auth.sh"
+
 # 选择可用的 Docker Compose 命令（优先 docker compose，其次 docker-compose）
 DOCKER_COMPOSE_BIN=""
 DOCKER_COMPOSE_SUBCMD=""
@@ -352,6 +355,14 @@ start_docker() {
     # 读取.env文件
     source "$PROJECT_ROOT/.env"
     storage_type=${STORAGE_TYPE:-local}
+
+    local plugin_profile_args=()
+    if plugin_runtime_is_enabled; then
+        if ! ensure_plugin_runtime_auth_token; then
+            return 1
+        fi
+        plugin_profile_args=(--profile plugins)
+    fi
     
     check_platform
     
@@ -364,11 +375,11 @@ start_docker() {
 	if [ "$NO_PULL" = true ]; then
 		# 不拉取镜像，使用本地镜像
 		log_info "跳过镜像拉取，使用本地镜像..."
-		PLATFORM=$PLATFORM "$DOCKER_COMPOSE_BIN" $DOCKER_COMPOSE_SUBCMD up --build -d
+		PLATFORM=$PLATFORM "$DOCKER_COMPOSE_BIN" $DOCKER_COMPOSE_SUBCMD "${plugin_profile_args[@]}" up --build -d
 	else
 		# 拉取最新镜像
 		log_info "拉取最新镜像..."
-		PLATFORM=$PLATFORM "$DOCKER_COMPOSE_BIN" $DOCKER_COMPOSE_SUBCMD up --pull always -d
+		PLATFORM=$PLATFORM "$DOCKER_COMPOSE_BIN" $DOCKER_COMPOSE_SUBCMD "${plugin_profile_args[@]}" up --pull always -d
 	fi
     if [ $? -ne 0 ]; then
         log_error "Docker容器启动失败"
@@ -493,6 +504,15 @@ restart_container() {
     check_docker
     if [ $? -ne 0 ]; then
         return 1
+    fi
+
+    if ! check_env_file; then
+        return 1
+    fi
+    if plugin_runtime_is_enabled || [ "$container_name" = "plugin-runtime" ]; then
+        if ! ensure_plugin_runtime_auth_token; then
+            return 1
+        fi
     fi
     
     check_platform

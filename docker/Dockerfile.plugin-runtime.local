@@ -1,0 +1,6 @@
+FROM scratch
+COPY --from=certificates ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY plugin-runtime /plugin-runtime
+VOLUME ["/var/lib/weknora-plugin-runtime"]
+EXPOSE 9091 18080
+ENTRYPOINT ["/plugin-runtime"]

@@ -1,0 +1,10 @@
+volumes:
+  postgres-data-dev:
+    external: true
+    name: weknora_postgres-data-dev
+  redis_data_dev:
+    external: true
+    name: weknora_redis_data_dev
+  docreader-tmp-dev:
+    external: true
+    name: weknora_docreader-tmp-dev

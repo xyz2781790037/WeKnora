@@ -24,6 +24,9 @@ const maxRuntimeMessageSize = 8 * 1024 * 1024
 type dockerEngine interface {
 	ping(context.Context) error
 	ensureInternalNetwork(context.Context, string) error
+	connectContainerToNetwork(context.Context, string, string, []string) error
+	disconnectContainerFromNetwork(context.Context, string, string) error
+	removeNetwork(context.Context, string) error
 	pullImage(context.Context, string) error
 	imageDigest(context.Context, string) (string, error)
 	createContainer(context.Context, containerSpec) error
@@ -31,6 +34,7 @@ type dockerEngine interface {
 	stopContainer(context.Context, string, time.Duration) error
 	removeContainer(context.Context, string) error
 	containerState(context.Context, string) (exists bool, running bool, err error)
+	containerNetworkMode(context.Context, string) (string, error)
 }
 
 // Manager is the single owner of plugin container and connection lifecycle.
@@ -47,6 +51,8 @@ type Manager struct {
 	connections   map[string]*grpc.ClientConn
 	lockMu        sync.Mutex
 	pluginLocks   map[string]*sync.Mutex
+	quotaMu       sync.Mutex
+	callQuotas    map[string]*pluginCallQuota
 }
 
 func NewManager(ctx context.Context, config Config, events *eventBus) (*Manager, error) {
@@ -82,8 +88,41 @@ func newManagerWithDocker(
 		installations: installations,
 		connections:   make(map[string]*grpc.ClientConn),
 		pluginLocks:   make(map[string]*sync.Mutex),
+		callQuotas:    make(map[string]*pluginCallQuota),
 	}
 	for id, item := range installations {
+		if supplyErr := verifyPluginSupplyChain(item.Manifest, item.ImageDigest, config); supplyErr != nil {
+			_, running, inspectErr := docker.containerState(ctx, item.ContainerName)
+			if inspectErr == nil && running {
+				_ = docker.stopContainer(ctx, item.ContainerName, config.ShutdownTimeout)
+			}
+			item.State = pluginv1.RuntimeState_RUNTIME_STATE_ERROR
+			item.Message = fmt.Sprintf("apply plugin supply-chain policy: %v", supplyErr)
+			item.UpdatedAt = time.Now().UTC()
+			installations[id] = item
+			continue
+		}
+		limits, limitsErr := resolvePluginLimits(item.Manifest, config)
+		if limitsErr != nil {
+			_, running, inspectErr := docker.containerState(ctx, item.ContainerName)
+			if inspectErr == nil && running {
+				_ = docker.stopContainer(ctx, item.ContainerName, config.ShutdownTimeout)
+			}
+			item.State = pluginv1.RuntimeState_RUNTIME_STATE_ERROR
+			item.Message = fmt.Sprintf("apply plugin resource policy: %v", limitsErr)
+			item.UpdatedAt = time.Now().UTC()
+			installations[id] = item
+			continue
+		}
+		expectedResourcePolicy := resourcePolicyFingerprint(limits)
+		targetNetwork, networkErr := manager.ensurePluginNetwork(ctx, id)
+		if networkErr != nil {
+			item.State = pluginv1.RuntimeState_RUNTIME_STATE_ERROR
+			item.Message = fmt.Sprintf("prepare isolated network: %v", networkErr)
+			item.UpdatedAt = time.Now().UTC()
+			installations[id] = item
+			continue
+		}
 		exists, running, inspectErr := docker.containerState(ctx, item.ContainerName)
 		switch {
 		case inspectErr != nil:
@@ -95,6 +134,23 @@ func newManagerWithDocker(
 		default:
 			item.State = pluginv1.RuntimeState_RUNTIME_STATE_RUNNING
 			item.Message = "plugin is running"
+		}
+		if exists && inspectErr == nil {
+			currentNetwork, networkModeErr := docker.containerNetworkMode(ctx, item.ContainerName)
+			if networkModeErr != nil {
+				item.State = pluginv1.RuntimeState_RUNTIME_STATE_ERROR
+				item.Message = networkModeErr.Error()
+			} else if currentNetwork != targetNetwork {
+				if migrationErr := manager.migrateContainerNetwork(ctx, item, running); migrationErr != nil {
+					item.State = pluginv1.RuntimeState_RUNTIME_STATE_ERROR
+					item.Message = fmt.Sprintf("migrate isolated network: %v", migrationErr)
+				}
+			} else if item.ResourcePolicy != expectedResourcePolicy {
+				if policyErr := manager.reapplyContainerPolicy(ctx, item, running); policyErr != nil {
+					item.State = pluginv1.RuntimeState_RUNTIME_STATE_ERROR
+					item.Message = fmt.Sprintf("reapply plugin resource policy: %v", policyErr)
+				}
+			}
 		}
 		item.UpdatedAt = time.Now().UTC()
 		installations[id] = item
@@ -116,7 +172,7 @@ func (m *Manager) Install(
 	unlock := m.lockPlugin(manifest.GetId())
 	defer unlock()
 	if existing := m.get(manifest.GetId()); existing != nil {
-		if existing.Image == image && existing.Manifest.GetVersion() == manifest.GetVersion() {
+		if sameInstallRequest(existing, manifest, image, timeout) {
 			return runtimeStatus(existing), nil
 		}
 		return nil, statusErrorAlreadyExists(manifest.GetId())
@@ -129,6 +185,9 @@ func (m *Manager) Install(
 	digest, err := m.docker.imageDigest(ctx, image)
 	if err != nil {
 		return nil, fmt.Errorf("inspect plugin image: %w", err)
+	}
+	if err := verifyPluginSupplyChain(manifest, digest, m.config); err != nil {
+		return nil, fmt.Errorf("verify plugin supply chain: %w", err)
 	}
 	proxyToken, err := newProxyToken()
 	if err != nil {
@@ -147,11 +206,13 @@ func (m *Manager) Install(
 	}
 	if err := m.recreateAndStart(ctx, item); err != nil {
 		_ = m.docker.removeContainer(context.Background(), item.ContainerName)
+		_ = m.cleanupPluginNetwork(context.Background(), item.Manifest.GetId())
 		m.events.publish(item.Manifest.GetId(), "install_failed", "plugin verification failed", map[string]string{"error": err.Error()})
 		return nil, err
 	}
 	if err := m.docker.stopContainer(ctx, item.ContainerName, m.config.ShutdownTimeout); err != nil {
 		_ = m.docker.removeContainer(context.Background(), item.ContainerName)
+		_ = m.cleanupPluginNetwork(context.Background(), item.Manifest.GetId())
 		return nil, fmt.Errorf("stop verified plugin: %w", err)
 	}
 	m.closeConnection(item.Manifest.GetId())
@@ -160,6 +221,7 @@ func (m *Manager) Install(
 	item.UpdatedAt = time.Now().UTC()
 	if err := m.put(item); err != nil {
 		_ = m.docker.removeContainer(context.Background(), item.ContainerName)
+		_ = m.cleanupPluginNetwork(context.Background(), item.Manifest.GetId())
 		return nil, err
 	}
 	m.events.publish(item.Manifest.GetId(), "installed", item.Message, map[string]string{
@@ -195,6 +257,9 @@ func (m *Manager) Upgrade(
 	if err != nil {
 		return nil, err
 	}
+	if err := verifyPluginSupplyChain(manifest, digest, m.config); err != nil {
+		return nil, fmt.Errorf("verify upgraded plugin supply chain: %w", err)
+	}
 	next := cloneInstallation(previous)
 	next.Manifest = manifest
 	next.Image = image
@@ -205,22 +270,18 @@ func (m *Manager) Upgrade(
 	next.UpdatedAt = time.Now().UTC()
 
 	if err := m.docker.stopContainer(ctx, previous.ContainerName, m.config.ShutdownTimeout); err != nil {
-		return nil, err
+		return nil, m.failUpgradeWithRollback(previous, manifest.GetVersion(), wasRunning, err)
 	}
 	m.closeConnection(previous.Manifest.GetId())
 	if err := m.docker.removeContainer(ctx, previous.ContainerName); err != nil {
-		return nil, err
+		return nil, m.failUpgradeWithRollback(previous, manifest.GetVersion(), wasRunning, err)
 	}
 	if err := m.recreateAndStart(ctx, next); err != nil {
-		rollbackErr := m.rollbackUpgrade(ctx, previous, wasRunning)
-		if rollbackErr != nil {
-			return nil, fmt.Errorf("upgrade failed: %v; rollback failed: %w", err, rollbackErr)
-		}
-		return nil, fmt.Errorf("upgrade failed and previous version was restored: %w", err)
+		return nil, m.failUpgradeWithRollback(previous, manifest.GetVersion(), wasRunning, err)
 	}
 	if !wasRunning {
 		if err := m.docker.stopContainer(ctx, next.ContainerName, m.config.ShutdownTimeout); err != nil {
-			return nil, err
+			return nil, m.failUpgradeWithRollback(previous, manifest.GetVersion(), wasRunning, err)
 		}
 		m.closeConnection(next.Manifest.GetId())
 		next.State = pluginv1.RuntimeState_RUNTIME_STATE_STOPPED
@@ -231,7 +292,7 @@ func (m *Manager) Upgrade(
 	}
 	next.UpdatedAt = time.Now().UTC()
 	if err := m.put(next); err != nil {
-		return nil, err
+		return nil, m.failUpgradeWithRollback(previous, manifest.GetVersion(), wasRunning, err)
 	}
 	m.events.publish(next.Manifest.GetId(), "upgraded", next.Message, map[string]string{
 		"version": next.Manifest.GetVersion(),
@@ -247,9 +308,29 @@ func (m *Manager) Start(ctx context.Context, pluginID string) (*pluginv1.PluginR
 	if item == nil {
 		return nil, ErrRuntimePluginNotFound
 	}
+	if err := verifyPluginSupplyChain(item.Manifest, item.ImageDigest, m.config); err != nil {
+		return nil, fmt.Errorf("verify plugin supply chain: %w", err)
+	}
+	limits, err := resolvePluginLimits(item.Manifest, m.config)
+	if err != nil {
+		return nil, fmt.Errorf("apply plugin resource policy: %w", err)
+	}
 	exists, running, err := m.docker.containerState(ctx, item.ContainerName)
 	if err != nil {
 		return nil, err
+	}
+	if exists && item.ResourcePolicy != resourcePolicyFingerprint(limits) {
+		m.closeConnection(pluginID)
+		if err := m.docker.stopContainer(ctx, item.ContainerName, m.config.ShutdownTimeout); err != nil {
+			return nil, err
+		}
+		if err := m.docker.removeContainer(ctx, item.ContainerName); err != nil {
+			return nil, err
+		}
+		if err := m.createContainer(ctx, item); err != nil {
+			return nil, err
+		}
+		running = false
 	}
 	if !exists {
 		if err := m.createContainer(ctx, item); err != nil {
@@ -318,9 +399,13 @@ func (m *Manager) Uninstall(ctx context.Context, pluginID string) error {
 	if err := m.docker.removeContainer(ctx, item.ContainerName); err != nil {
 		return err
 	}
+	if err := m.cleanupPluginNetwork(ctx, pluginID); err != nil {
+		return fmt.Errorf("remove isolated plugin network: %w", err)
+	}
 	if err := m.remove(pluginID); err != nil {
 		return err
 	}
+	m.removeCallQuota(pluginID)
 	m.events.publish(pluginID, "uninstalled", "plugin container removed", nil)
 	return nil
 }
@@ -425,6 +510,13 @@ func (m *Manager) validateInstall(
 	if manifest.GetConfig() == nil || !json.Valid([]byte(manifest.GetConfig().GetJsonSchema())) {
 		return nil, "", 0, errors.New("plugin config JSON Schema is invalid")
 	}
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(manifest.GetConfig().GetJsonSchema()), &schema); err != nil {
+		return nil, "", 0, errors.New("plugin config JSON Schema must be an object")
+	}
+	if err := pluginsdk.ValidateConfigSchema(schema); err != nil {
+		return nil, "", 0, err
+	}
 	if permissions := manifest.GetPermissions(); permissions != nil {
 		if !permissions.GetNetwork() && len(permissions.GetAllowedHosts()) > 0 {
 			return nil, "", 0, errors.New("network-disabled plugin cannot declare allowed hosts")
@@ -445,7 +537,17 @@ func (m *Manager) validateInstall(
 	if timeout <= 0 || timeout > m.config.MaxCallTimeout {
 		return nil, "", 0, fmt.Errorf("plugin call timeout must be between 1ns and %s", m.config.MaxCallTimeout)
 	}
+	if _, err := resolvePluginLimits(manifest, m.config); err != nil {
+		return nil, "", 0, err
+	}
 	return proto.Clone(manifest).(*pluginv1.PluginManifest), image, timeout, nil
+}
+
+func sameInstallRequest(existing *installation, manifest *pluginv1.PluginManifest, image string, timeout time.Duration) bool {
+	return existing != nil &&
+		existing.Image == image &&
+		existing.CallTimeout == timeout &&
+		proto.Equal(existing.Manifest, manifest)
 }
 
 func (m *Manager) recreateAndStart(ctx context.Context, item *installation) error {
@@ -464,19 +566,113 @@ func (m *Manager) recreateAndStart(ctx context.Context, item *installation) erro
 }
 
 func (m *Manager) createContainer(ctx context.Context, item *installation) error {
-	return m.docker.createContainer(ctx, containerSpec{
+	network, err := m.ensurePluginNetwork(ctx, item.Manifest.GetId())
+	if err != nil {
+		return err
+	}
+	limits, err := resolvePluginLimits(item.Manifest, m.config)
+	if err != nil {
+		return err
+	}
+	if err := m.docker.createContainer(ctx, containerSpec{
 		PluginID:      item.Manifest.GetId(),
 		PluginVersion: item.Manifest.GetVersion(),
 		Image:         installationImage(item),
 		Name:          item.ContainerName,
-		Network:       m.config.SandboxNetwork,
+		Network:       network,
 		ProxyURL:      m.config.ProxyURL,
 		ProxyToken:    item.ProxyToken,
 		PluginPort:    m.config.PluginPort,
-		MemoryBytes:   m.config.MemoryBytes,
-		NanoCPUs:      m.config.NanoCPUs,
-		PIDsLimit:     m.config.PIDsLimit,
-	})
+		MemoryBytes:   limits.memoryBytes,
+		NanoCPUs:      limits.nanoCPUs,
+		PIDsLimit:     limits.pidsLimit,
+	}); err != nil {
+		return err
+	}
+	item.ResourcePolicy = resourcePolicyFingerprint(limits)
+	return nil
+}
+
+func (m *Manager) ensurePluginNetwork(ctx context.Context, pluginID string) (string, error) {
+	network := pluginNetworkName(m.config.SandboxNetwork, pluginID)
+	if err := m.docker.ensureInternalNetwork(ctx, network); err != nil {
+		return "", err
+	}
+	if err := m.docker.connectContainerToNetwork(
+		ctx,
+		network,
+		m.config.RuntimeContainer,
+		[]string{m.config.ContainerDNSName},
+	); err != nil {
+		return "", err
+	}
+	return network, nil
+}
+
+func (m *Manager) cleanupPluginNetwork(ctx context.Context, pluginID string) error {
+	network := pluginNetworkName(m.config.SandboxNetwork, pluginID)
+	if err := m.docker.disconnectContainerFromNetwork(ctx, network, m.config.RuntimeContainer); err != nil {
+		return err
+	}
+	return m.docker.removeNetwork(ctx, network)
+}
+
+func (m *Manager) migrateContainerNetwork(ctx context.Context, item *installation, wasRunning bool) error {
+	if err := m.docker.stopContainer(ctx, item.ContainerName, m.config.ShutdownTimeout); err != nil {
+		return err
+	}
+	if err := m.docker.removeContainer(ctx, item.ContainerName); err != nil {
+		return err
+	}
+	if err := m.createContainer(ctx, item); err != nil {
+		return err
+	}
+	if !wasRunning {
+		item.State = pluginv1.RuntimeState_RUNTIME_STATE_STOPPED
+		item.Message = "plugin migrated to isolated network"
+		return nil
+	}
+	if err := m.docker.startContainer(ctx, item.ContainerName); err != nil {
+		return err
+	}
+	item.State = pluginv1.RuntimeState_RUNTIME_STATE_STARTING
+	if err := m.waitReady(ctx, item); err != nil {
+		return err
+	}
+	item.State = pluginv1.RuntimeState_RUNTIME_STATE_RUNNING
+	item.Message = "plugin migrated to isolated network"
+	m.events.publish(item.Manifest.GetId(), "network_isolated", item.Message, nil)
+	return nil
+}
+
+func (m *Manager) reapplyContainerPolicy(ctx context.Context, item *installation, wasRunning bool) error {
+	if err := m.docker.stopContainer(ctx, item.ContainerName, m.config.ShutdownTimeout); err != nil {
+		return err
+	}
+	if err := m.docker.removeContainer(ctx, item.ContainerName); err != nil {
+		return err
+	}
+	if err := m.createContainer(ctx, item); err != nil {
+		return err
+	}
+	if !wasRunning {
+		item.State = pluginv1.RuntimeState_RUNTIME_STATE_STOPPED
+		item.Message = "plugin resource policy reapplied"
+		return nil
+	}
+	if err := m.docker.startContainer(ctx, item.ContainerName); err != nil {
+		return err
+	}
+	item.State = pluginv1.RuntimeState_RUNTIME_STATE_STARTING
+	if err := m.waitReady(ctx, item); err != nil {
+		return err
+	}
+	item.State = pluginv1.RuntimeState_RUNTIME_STATE_RUNNING
+	item.Message = "plugin resource policy reapplied"
+	if m.events != nil {
+		m.events.publish(item.Manifest.GetId(), "resource_policy_applied", item.Message, nil)
+	}
+	return nil
 }
 
 func installationImage(item *installation) string {
@@ -566,10 +762,15 @@ func (m *Manager) dialPlugin(item *installation) (*grpc.ClientConn, error) {
 }
 
 func (m *Manager) rollbackUpgrade(ctx context.Context, previous *installation, wasRunning bool) error {
-	_ = m.docker.stopContainer(ctx, previous.ContainerName, m.config.ShutdownTimeout)
-	_ = m.docker.removeContainer(ctx, previous.ContainerName)
+	m.closeConnection(previous.Manifest.GetId())
+	if err := m.docker.stopContainer(ctx, previous.ContainerName, m.config.ShutdownTimeout); err != nil {
+		return fmt.Errorf("stop failed upgrade container: %w", err)
+	}
+	if err := m.docker.removeContainer(ctx, previous.ContainerName); err != nil {
+		return fmt.Errorf("remove failed upgrade container: %w", err)
+	}
 	if err := m.createContainer(ctx, previous); err != nil {
-		return err
+		return fmt.Errorf("recreate previous plugin container: %w", err)
 	}
 	if wasRunning {
 		if err := m.docker.startContainer(ctx, previous.ContainerName); err != nil {
@@ -587,6 +788,36 @@ func (m *Manager) rollbackUpgrade(ctx context.Context, previous *installation, w
 	}
 	previous.UpdatedAt = time.Now().UTC()
 	return m.put(previous)
+}
+
+func (m *Manager) failUpgradeWithRollback(
+	previous *installation,
+	attemptedVersion string,
+	wasRunning bool,
+	upgradeErr error,
+) error {
+	pluginID := previous.Manifest.GetId()
+	details := map[string]string{
+		"from_version": previous.Manifest.GetVersion(),
+		"to_version":   attemptedVersion,
+		"error":        upgradeErr.Error(),
+	}
+	m.events.publish(pluginID, "rollback_started", "plugin upgrade failed; restoring previous version", details)
+
+	rollbackTimeout := m.config.HealthTimeout + 2*m.config.ShutdownTimeout + 10*time.Second
+	rollbackCtx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+	defer cancel()
+	if rollbackErr := m.rollbackUpgrade(rollbackCtx, previous, wasRunning); rollbackErr != nil {
+		failedDetails := make(map[string]string, len(details)+1)
+		for key, value := range details {
+			failedDetails[key] = value
+		}
+		failedDetails["rollback_error"] = rollbackErr.Error()
+		m.events.publish(pluginID, "rollback_failed", "plugin upgrade rollback failed", failedDetails)
+		return fmt.Errorf("upgrade failed: %v; rollback failed: %w", upgradeErr, rollbackErr)
+	}
+	m.events.publish(pluginID, "rollback_succeeded", "previous plugin version restored", details)
+	return fmt.Errorf("upgrade failed and previous version was restored: %w", upgradeErr)
 }
 
 func (m *Manager) get(pluginID string) *installation {

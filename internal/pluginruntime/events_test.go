@@ -30,3 +30,16 @@ func TestEventBusOnlyReplaysEventsAfterKnownSequence(t *testing.T) {
 	require.Len(t, backlog, 1)
 	assert.Equal(t, "second", backlog[0].GetKind())
 }
+
+func TestEventBusListFiltersAndReturnsLatestEventsInOrder(t *testing.T) {
+	bus := newEventBus()
+	bus.publish("io.example.alpha", "first", "first", nil)
+	bus.publish("io.example.beta", "other", "other", nil)
+	bus.publish("io.example.alpha", "second", "second", nil)
+	bus.publish("io.example.alpha", "third", "third", nil)
+
+	events := bus.list("io.example.alpha", 1, 2)
+	require.Len(t, events, 2)
+	assert.Equal(t, []string{"second", "third"}, []string{events[0].GetKind(), events[1].GetKind()})
+	assert.Less(t, events[0].GetSequence(), events[1].GetSequence())
+}

@@ -277,6 +277,13 @@ func publicAddr(address netip.Addr) bool {
 	return true
 }
 
+// IsPublicAddress reports whether an address is safe for plugin-related
+// outbound traffic. It intentionally applies the same policy as the sandbox
+// egress proxy, including private, reserved and Fake-IP ranges.
+func IsPublicAddress(address netip.Addr) bool {
+	return publicAddr(address)
+}
+
 var reservedEgressPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("0.0.0.0/8"),
 	netip.MustParsePrefix("100.64.0.0/10"),

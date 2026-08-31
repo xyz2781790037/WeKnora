@@ -90,6 +90,93 @@ func (c *dockerClient) ensureInternalNetwork(ctx context.Context, name string) e
 	return nil
 }
 
+func (c *dockerClient) connectContainerToNetwork(
+	ctx context.Context,
+	networkName, containerName string,
+	aliases []string,
+) error {
+	connected, err := c.networkContainsContainer(ctx, networkName, containerName)
+	if err != nil || connected {
+		return err
+	}
+	response, err := c.request(ctx, http.MethodPost, "/networks/"+url.PathEscape(networkName)+"/connect", map[string]any{
+		"Container": containerName,
+		"EndpointConfig": map[string]any{
+			"Aliases": aliases,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return dockerResponseError(response)
+	}
+	return nil
+}
+
+func (c *dockerClient) disconnectContainerFromNetwork(
+	ctx context.Context,
+	networkName, containerName string,
+) error {
+	connected, err := c.networkContainsContainer(ctx, networkName, containerName)
+	if err != nil || !connected {
+		return err
+	}
+	response, err := c.request(ctx, http.MethodPost, "/networks/"+url.PathEscape(networkName)+"/disconnect", map[string]any{
+		"Container": containerName,
+		"Force":     true,
+	})
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return dockerResponseError(response)
+	}
+	return nil
+}
+
+func (c *dockerClient) removeNetwork(ctx context.Context, name string) error {
+	response, err := c.request(ctx, http.MethodDelete, "/networks/"+url.PathEscape(name), nil)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNoContent && response.StatusCode != http.StatusNotFound {
+		return dockerResponseError(response)
+	}
+	return nil
+}
+
+func (c *dockerClient) networkContainsContainer(ctx context.Context, networkName, containerName string) (bool, error) {
+	response, err := c.request(ctx, http.MethodGet, "/networks/"+url.PathEscape(networkName), nil)
+	if err != nil {
+		return false, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if response.StatusCode != http.StatusOK {
+		return false, dockerResponseError(response)
+	}
+	var inspected struct {
+		Containers map[string]struct {
+			Name string `json:"Name"`
+		} `json:"Containers"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&inspected); err != nil {
+		return false, err
+	}
+	for id, item := range inspected.Containers {
+		if item.Name == containerName || strings.HasPrefix(id, containerName) || strings.HasPrefix(containerName, id) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (c *dockerClient) pullImage(ctx context.Context, image string) error {
 	path := "/images/create?fromImage=" + url.QueryEscape(image)
 	response, err := c.request(ctx, http.MethodPost, path, nil)
@@ -123,10 +210,29 @@ func (c *dockerClient) imageDigest(ctx context.Context, image string) (string, e
 	if err := json.NewDecoder(response.Body).Decode(&inspected); err != nil {
 		return "", err
 	}
+	repository := imageRepository(image)
+	for _, digest := range inspected.RepoDigests {
+		name, _, ok := strings.Cut(digest, "@")
+		if ok && strings.EqualFold(name, repository) {
+			return digest, nil
+		}
+	}
 	if len(inspected.RepoDigests) > 0 {
 		return inspected.RepoDigests[0], nil
 	}
 	return inspected.ID, nil
+}
+
+func imageRepository(image string) string {
+	image = strings.TrimSpace(image)
+	if repository, _, ok := strings.Cut(image, "@"); ok {
+		return repository
+	}
+	lastSlash := strings.LastIndexByte(image, '/')
+	if tag := strings.LastIndexByte(image, ':'); tag > lastSlash {
+		return image[:tag]
+	}
+	return image
 }
 
 type containerSpec struct {
@@ -284,6 +390,26 @@ func (c *dockerClient) containerState(ctx context.Context, name string) (bool, b
 		return true, false, errors.New(inspected.State.Error)
 	}
 	return true, inspected.State.Running, nil
+}
+
+func (c *dockerClient) containerNetworkMode(ctx context.Context, name string) (string, error) {
+	response, err := c.request(ctx, http.MethodGet, "/containers/"+url.PathEscape(name)+"/json", nil)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", dockerResponseError(response)
+	}
+	var inspected struct {
+		HostConfig struct {
+			NetworkMode string `json:"NetworkMode"`
+		} `json:"HostConfig"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&inspected); err != nil {
+		return "", err
+	}
+	return inspected.HostConfig.NetworkMode, nil
 }
 
 func (c *dockerClient) request(ctx context.Context, method, path string, body any) (*http.Response, error) {

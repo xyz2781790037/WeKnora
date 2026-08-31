@@ -29,6 +29,9 @@ log_warning() {
     printf "%b\n" "${YELLOW}[WARNING]${NC} $1"
 }
 
+# shellcheck source=plugin-runtime-auth.sh
+source "$SCRIPT_DIR/plugin-runtime-auth.sh"
+
 # 选择可用的 Docker Compose 命令
 DOCKER_COMPOSE_BIN=""
 DOCKER_COMPOSE_SUBCMD=""
@@ -134,6 +137,47 @@ check_docker() {
     fi
     
     return 0
+}
+
+# Start the isolated plugin runtime for a host-run backend when explicitly
+# enabled in .env/.env.local. Production Compose keeps using the service name;
+# dev-app reaches the published loopback port instead.
+start_plugin_runtime_for_app() {
+    if ! plugin_runtime_is_enabled; then
+        return 0
+    fi
+    if [ -n "${DEV_REMOTE_HOST:-}" ]; then
+        log_info "远程开发模式: plugin-runtime 使用 ${WEKNORA_PLUGIN_RUNTIME_ADDR}"
+        return 0
+    fi
+    if ! ensure_plugin_runtime_auth_token; then
+        return 1
+    fi
+    if ! check_docker; then
+        return 1
+    fi
+
+    export WEKNORA_PLUGIN_RUNTIME_ADDR="127.0.0.1:${PLUGIN_RUNTIME_PORT:-9092}"
+    log_info "启动 plugin-runtime（${WEKNORA_PLUGIN_RUNTIME_ADDR}）..."
+    "$DOCKER_COMPOSE_BIN" $DOCKER_COMPOSE_SUBCMD -f docker-compose.dev.yml \
+        --profile plugins up -d plugin-runtime || return 1
+
+    local runtime_port="${PLUGIN_RUNTIME_PORT:-9092}"
+    local attempts=0
+    while [ "$attempts" -lt 30 ]; do
+        if command -v nc &> /dev/null; then
+            nc -z -w 1 127.0.0.1 "$runtime_port" 2>/dev/null && break
+        elif (echo > "/dev/tcp/127.0.0.1/$runtime_port") 2>/dev/null; then
+            break
+        fi
+        attempts=$((attempts + 1))
+        sleep 1
+    done
+    if [ "$attempts" -ge 30 ]; then
+        log_error "plugin-runtime 未在 30 秒内监听 127.0.0.1:${runtime_port}"
+        return 1
+    fi
+    log_success "plugin-runtime 已启动"
 }
 
 # 检查 .env 是否启用了 hybrid 模式（用于 --odl-hybrid 启动后重建 docreader）
@@ -448,6 +492,10 @@ start_app() {
         export QDRANT_HOST=127.0.0.1
     fi
     export DOCREADER_TRANSPORT="${DOCREADER_TRANSPORT:-grpc}"
+
+    if ! start_plugin_runtime_for_app; then
+        return 1
+    fi
 
     if ! check_remote_dev_connectivity; then
         return 1

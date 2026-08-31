@@ -6,6 +6,7 @@
 !.github/
 
 # 敏感文件
+.runtime/
 *.pem
 *_key
 *_secret
