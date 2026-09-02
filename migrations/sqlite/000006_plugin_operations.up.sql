@@ -1,0 +1,8 @@
+ALTER TABLE plugins ADD COLUMN consecutive_health_failures INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE plugins ADD COLUMN recovery_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE plugins ADD COLUMN last_recovery_at DATETIME;
+ALTER TABLE plugins ADD COLUMN source_manifest_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE plugins ADD COLUMN latest_version VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE plugins ADD COLUMN update_available INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE plugins ADD COLUMN update_checked_at DATETIME;
+ALTER TABLE plugins ADD COLUMN update_message TEXT NOT NULL DEFAULT '';

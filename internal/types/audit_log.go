@@ -145,6 +145,7 @@ const (
 	AuditActionPluginDisabled      AuditAction = "plugin.disabled"
 	AuditActionPluginUninstalled   AuditAction = "plugin.uninstalled"
 	AuditActionPluginNetworkDenied AuditAction = "plugin.network_denied"
+	AuditActionPluginRuntimeEvent  AuditAction = "plugin.runtime_event"
 
 	// Knowledge-base activity actions. These rows use scope_type=knowledge_base
 	// and scope_id=<kb id>; TargetType/TargetID identify the concrete child

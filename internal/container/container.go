@@ -353,6 +353,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewPluginService))
 	must(container.Invoke(restoreEnabledPlugins))
 	must(container.Invoke(pluginintegration.StartAuditSubscriber))
+	must(container.Invoke(service.StartPluginHealthMonitor))
 	must(container.Provide(datasource.NewScheduler))
 	must(container.Provide(service.NewDataSourceService))
 	must(container.Invoke(startDataSourceScheduler))

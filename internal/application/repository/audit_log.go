@@ -74,6 +74,18 @@ func (r *auditLogRepository) List(
 		if q.ScopeID != "" {
 			tx = tx.Where("scope_id = ?", q.ScopeID)
 		}
+		if q.TargetType != "" {
+			tx = tx.Where("target_type = ?", q.TargetType)
+		}
+		if q.TargetID != "" {
+			tx = tx.Where("target_id = ?", q.TargetID)
+		}
+		if q.CreatedAfter != nil {
+			tx = tx.Where("created_at >= ?", *q.CreatedAfter)
+		}
+		if q.CreatedBefore != nil {
+			tx = tx.Where("created_at <= ?", *q.CreatedBefore)
+		}
 		if q.UnscopedOnly {
 			tx = tx.Where("scope_type = ''")
 		}

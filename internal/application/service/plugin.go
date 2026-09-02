@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	pluginv1 "github.com/Tencent/WeKnora/api/proto/plugin/v1"
@@ -24,8 +27,10 @@ import (
 )
 
 const (
-	pluginRuntimeOperationTimeout = 10 * time.Minute
-	maxPluginCallTimeoutSeconds   = 60 * 60
+	pluginRuntimeOperationTimeout    = 10 * time.Minute
+	pluginRuntimeCompensationTimeout = time.Minute
+	maxPluginCallTimeoutSeconds      = 60 * 60
+	maxPluginManifestBytes           = 1024 * 1024
 )
 
 var (
@@ -36,11 +41,16 @@ var (
 // PluginInstallInput is shared by install and upgrade operations. ManifestYAML
 // is kept out of the entity until it has passed SDK validation.
 type PluginInstallInput struct {
-	ManifestYAML       []byte
-	Image              string
-	CallTimeoutSeconds int
-	ActorUserID        string
+	ManifestYAML         []byte
+	ManifestURL          string
+	Image                string
+	CallTimeoutSeconds   int
+	ActorUserID          string
+	PermissionsConfirmed bool
+	PermissionDigest     string
 }
+
+type pluginOperationProgress func(stage, pluginID string)
 
 // PluginService owns system-wide installation state and coordinates side
 // effects with plugin-runtime. Tenant plugin configuration belongs to feature
@@ -52,7 +62,16 @@ type PluginService struct {
 	registrar   interfaces.PluginRegistrar
 	connectors  *datasource.ConnectorRegistry
 	webSearches *infrawebsearch.Registry
+	marketplace *githubPluginMarketplace
+	operations  *pluginOperationStore
 	hostVersion string
+	lockMu      sync.Mutex
+	pluginLocks map[string]*pluginOperationLock
+}
+
+type pluginOperationLock struct {
+	mu   sync.Mutex
+	refs int
 }
 
 func NewPluginService(
@@ -70,15 +89,37 @@ func NewPluginService(
 		registrar:   registrar,
 		connectors:  connectors,
 		webSearches: webSearches,
+		marketplace: newGitHubPluginMarketplace(),
+		operations:  newPluginOperationStore(),
 		hostVersion: readHostVersion(),
+		pluginLocks: make(map[string]*pluginOperationLock),
 	}
 }
 
 func (s *PluginService) Install(ctx context.Context, input PluginInstallInput) (*types.Plugin, error) {
+	return s.install(ctx, input, nil)
+}
+
+func (s *PluginService) install(
+	ctx context.Context,
+	input PluginInstallInput,
+	progress pluginOperationProgress,
+) (*types.Plugin, error) {
+	reportPluginOperationProgress(progress, "manifest", "")
+	if err := resolvePluginManifest(ctx, &input); err != nil {
+		return nil, err
+	}
+	reportPluginOperationProgress(progress, "validation", "")
 	manifest, transport, timeout, err := s.validateInstallInput(input)
 	if err != nil {
 		return nil, err
 	}
+	if err := validatePermissionConfirmation(input, manifest); err != nil {
+		return nil, err
+	}
+	unlock := s.lockPlugin(manifest.Metadata.ID)
+	defer unlock()
+	reportPluginOperationProgress(progress, "conflicts", manifest.Metadata.ID)
 	existing, err := s.repo.Get(ctx, manifest.Metadata.ID)
 	if err != nil {
 		return nil, fmt.Errorf("check installed plugin: %w", err)
@@ -95,7 +136,12 @@ func (s *PluginService) Install(ctx context.Context, input PluginInstallInput) (
 			return nil, fmt.Errorf("connector type %s is already provided by plugin %s", manifest.Spec.ConnectorType, owner.ID)
 		}
 	}
+	entity, err := pluginEntity(manifest, input.ActorUserID, input.ManifestURL, timeout, nil)
+	if err != nil {
+		return nil, err
+	}
 
+	reportPluginOperationProgress(progress, "runtime", manifest.Metadata.ID)
 	runtimeAPI, err := s.runtime.Runtime()
 	if err != nil {
 		return nil, err
@@ -111,15 +157,19 @@ func (s *PluginService) Install(ctx context.Context, input PluginInstallInput) (
 		return nil, fmt.Errorf("install plugin in runtime: %w", err)
 	}
 
-	entity, err := pluginEntity(manifest, input.ActorUserID, timeout, runtimeStatus)
-	if err != nil {
-		return nil, err
-	}
+	reportPluginOperationProgress(progress, "persistence", manifest.Metadata.ID)
+	applyRuntimeStatus(entity, runtimeStatus)
 	if err := s.repo.Create(ctx, entity); err != nil {
 		// Runtime install is compensatable because no persistent WeKnora record
 		// references the new container yet.
-		_, _ = runtimeAPI.Uninstall(context.Background(), &pluginv1.PluginTargetRequest{PluginId: entity.ID})
-		return nil, fmt.Errorf("save plugin installation: %w", err)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), pluginRuntimeCompensationTimeout)
+		_, cleanupErr := runtimeAPI.Uninstall(cleanupCtx, &pluginv1.PluginTargetRequest{PluginId: entity.ID})
+		cleanupCancel()
+		saveErr := fmt.Errorf("save plugin installation: %w", err)
+		if cleanupErr != nil {
+			return nil, errors.Join(saveErr, fmt.Errorf("remove unpersisted runtime plugin: %w", cleanupErr))
+		}
+		return nil, saveErr
 	}
 	s.auditLifecycle(ctx, types.AuditActionPluginInstalled, entity, input.ActorUserID, map[string]any{
 		"version": entity.Version,
@@ -129,16 +179,36 @@ func (s *PluginService) Install(ctx context.Context, input PluginInstallInput) (
 }
 
 func (s *PluginService) Upgrade(ctx context.Context, id string, input PluginInstallInput) (*types.Plugin, error) {
+	return s.upgrade(ctx, id, input, nil)
+}
+
+func (s *PluginService) upgrade(
+	ctx context.Context,
+	id string,
+	input PluginInstallInput,
+	progress pluginOperationProgress,
+) (*types.Plugin, error) {
+	reportPluginOperationProgress(progress, "manifest", id)
+	if err := resolvePluginManifest(ctx, &input); err != nil {
+		return nil, err
+	}
+	reportPluginOperationProgress(progress, "validation", id)
+	manifest, transport, timeout, err := s.validateInstallInput(input)
+	if err != nil {
+		return nil, err
+	}
+	if err := validatePermissionConfirmation(input, manifest); err != nil {
+		return nil, err
+	}
+	unlock := s.lockPlugin(id)
+	defer unlock()
+	reportPluginOperationProgress(progress, "conflicts", id)
 	existing, err := s.requirePlugin(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if existing.Origin != types.PluginOriginExternal {
 		return nil, errors.New("built-in plugins cannot be upgraded through the external runtime")
-	}
-	manifest, transport, timeout, err := s.validateInstallInput(input)
-	if err != nil {
-		return nil, err
 	}
 	if manifest.Metadata.ID != existing.ID {
 		return nil, errors.New("upgraded manifest id must match the installed plugin")
@@ -152,6 +222,7 @@ func (s *PluginService) Upgrade(ctx context.Context, id string, input PluginInst
 		return nil, fmt.Errorf("upgrade version %s must be newer than %s", newVersion, oldVersion)
 	}
 
+	reportPluginOperationProgress(progress, "runtime", id)
 	runtimeAPI, err := s.runtime.Runtime()
 	if err != nil {
 		return nil, err
@@ -167,17 +238,30 @@ func (s *PluginService) Upgrade(ctx context.Context, id string, input PluginInst
 		return nil, fmt.Errorf("upgrade plugin in runtime: %w", err)
 	}
 
-	updated, err := pluginEntity(manifest, existing.InstalledBy, timeout, runtimeStatus)
+	reportPluginOperationProgress(progress, "persistence", id)
+	sourceManifestURL := strings.TrimSpace(input.ManifestURL)
+	if sourceManifestURL == "" {
+		sourceManifestURL = existing.SourceManifestURL
+	}
+	updated, err := pluginEntity(manifest, existing.InstalledBy, sourceManifestURL, timeout, runtimeStatus)
 	if err != nil {
 		return nil, err
 	}
 	updated.Status = existing.Status
 	updated.CreatedAt = existing.CreatedAt
+	now := time.Now().UTC()
+	updated.UpdateCheckedAt = &now
+	updated.LatestVersion = updated.Version
+	updated.UpdateAvailable = false
+	updated.UpdateMessage = "插件已升级到最新版本"
 	if existing.Status == types.PluginStatusEnabled {
 		if err := s.registrar.Register(updated); err != nil {
 			registerErr := fmt.Errorf("register upgraded plugin: %w", err)
 			if rollbackErr := s.rollbackRuntimeUpgrade(runtimeAPI, existing); rollbackErr != nil {
 				return nil, errors.Join(registerErr, fmt.Errorf("restore previous runtime plugin: %w", rollbackErr))
+			}
+			if restoreErr := s.registrar.Register(existing); restoreErr != nil {
+				return nil, errors.Join(registerErr, fmt.Errorf("restore previous plugin registration: %w", restoreErr))
 			}
 			return nil, registerErr
 		}
@@ -199,6 +283,12 @@ func (s *PluginService) Upgrade(ctx context.Context, id string, input PluginInst
 		"new_version": updated.Version,
 	})
 	return updated, nil
+}
+
+func reportPluginOperationProgress(progress pluginOperationProgress, stage, pluginID string) {
+	if progress != nil {
+		progress(stage, pluginID)
+	}
 }
 
 func (s *PluginService) rollbackRuntimeUpgrade(
@@ -227,6 +317,8 @@ func (s *PluginService) rollbackRuntimeUpgrade(
 }
 
 func (s *PluginService) Enable(ctx context.Context, id, actorUserID string) (*types.Plugin, error) {
+	unlock := s.lockPlugin(id)
+	defer unlock()
 	plugin, err := s.requirePlugin(ctx, id)
 	if err != nil {
 		return nil, err
@@ -249,14 +341,18 @@ func (s *PluginService) Enable(ctx context.Context, id, actorUserID string) (*ty
 	}
 	applyRuntimeStatus(plugin, runtimeStatus)
 	if err := s.registrar.Register(plugin); err != nil {
-		_, _ = runtimeAPI.Stop(context.Background(), &pluginv1.PluginTargetRequest{PluginId: id})
+		compensationCtx, compensationCancel := context.WithTimeout(context.Background(), pluginRuntimeCompensationTimeout)
+		_, _ = runtimeAPI.Stop(compensationCtx, &pluginv1.PluginTargetRequest{PluginId: id})
+		compensationCancel()
 		return nil, fmt.Errorf("register plugin capabilities: %w", err)
 	}
 	plugin.Status = types.PluginStatusEnabled
 	plugin.UpdatedAt = time.Now().UTC()
 	if err := s.repo.Update(ctx, plugin); err != nil {
 		s.registrar.Unregister(plugin)
-		_, _ = runtimeAPI.Stop(context.Background(), &pluginv1.PluginTargetRequest{PluginId: id})
+		compensationCtx, compensationCancel := context.WithTimeout(context.Background(), pluginRuntimeCompensationTimeout)
+		_, _ = runtimeAPI.Stop(compensationCtx, &pluginv1.PluginTargetRequest{PluginId: id})
+		compensationCancel()
 		return nil, fmt.Errorf("save enabled plugin: %w", err)
 	}
 	s.auditLifecycle(ctx, types.AuditActionPluginEnabled, plugin, actorUserID, nil)
@@ -264,6 +360,8 @@ func (s *PluginService) Enable(ctx context.Context, id, actorUserID string) (*ty
 }
 
 func (s *PluginService) Disable(ctx context.Context, id, actorUserID string) (*types.Plugin, error) {
+	unlock := s.lockPlugin(id)
+	defer unlock()
 	plugin, err := s.requirePlugin(ctx, id)
 	if err != nil {
 		return nil, err
@@ -289,10 +387,12 @@ func (s *PluginService) Disable(ctx context.Context, id, actorUserID string) (*t
 	plugin.Status = types.PluginStatusDisabled
 	plugin.UpdatedAt = time.Now().UTC()
 	if err := s.repo.Update(ctx, plugin); err != nil {
-		if status, startErr := runtimeAPI.Start(context.Background(), &pluginv1.PluginTargetRequest{PluginId: id}); startErr == nil {
+		compensationCtx, compensationCancel := context.WithTimeout(context.Background(), pluginRuntimeCompensationTimeout)
+		if status, startErr := runtimeAPI.Start(compensationCtx, &pluginv1.PluginTargetRequest{PluginId: id}); startErr == nil {
 			applyRuntimeStatus(plugin, status)
 			_ = s.registrar.Register(plugin)
 		}
+		compensationCancel()
 		return nil, fmt.Errorf("save disabled plugin: %w", err)
 	}
 	s.auditLifecycle(ctx, types.AuditActionPluginDisabled, plugin, actorUserID, nil)
@@ -300,6 +400,8 @@ func (s *PluginService) Disable(ctx context.Context, id, actorUserID string) (*t
 }
 
 func (s *PluginService) Uninstall(ctx context.Context, id, actorUserID string) error {
+	unlock := s.lockPlugin(id)
+	defer unlock()
 	plugin, err := s.requirePlugin(ctx, id)
 	if err != nil {
 		return err
@@ -338,6 +440,31 @@ func (s *PluginService) Uninstall(ctx context.Context, id, actorUserID string) e
 	return nil
 }
 
+func (s *PluginService) lockPlugin(id string) func() {
+	id = strings.TrimSpace(id)
+	s.lockMu.Lock()
+	if s.pluginLocks == nil {
+		s.pluginLocks = make(map[string]*pluginOperationLock)
+	}
+	entry := s.pluginLocks[id]
+	if entry == nil {
+		entry = &pluginOperationLock{}
+		s.pluginLocks[id] = entry
+	}
+	entry.refs++
+	s.lockMu.Unlock()
+	entry.mu.Lock()
+	return func() {
+		entry.mu.Unlock()
+		s.lockMu.Lock()
+		entry.refs--
+		if entry.refs == 0 && s.pluginLocks[id] == entry {
+			delete(s.pluginLocks, id)
+		}
+		s.lockMu.Unlock()
+	}
+}
+
 func (s *PluginService) Get(ctx context.Context, id string) (*types.Plugin, error) {
 	return s.requirePlugin(ctx, id)
 }
@@ -357,42 +484,82 @@ func (s *PluginService) List(ctx context.Context) ([]*types.Plugin, error) {
 	return result, nil
 }
 
-func (s *PluginService) RefreshHealth(ctx context.Context, id string) (*types.Plugin, error) {
+func (s *PluginService) ListRuntimeEvents(
+	ctx context.Context,
+	id string,
+	after uint64,
+	limit uint32,
+) ([]*pluginv1.RuntimeEvent, error) {
 	plugin, err := s.requirePlugin(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if plugin.Origin == types.PluginOriginBuiltin {
-		return plugin, nil
+	if plugin.Origin != types.PluginOriginExternal {
+		return []*pluginv1.RuntimeEvent{}, nil
 	}
-	lifecycle, err := s.runtime.Lifecycle()
+	runtimeAPI, err := s.runtime.Runtime()
 	if err != nil {
 		return nil, err
 	}
-	callCtx, cancel := context.WithTimeout(ctx, time.Duration(plugin.CallTimeoutSeconds)*time.Second)
-	defer cancel()
-	response, err := lifecycle.HealthCheck(callCtx, &pluginv1.HealthCheckRequest{Context: &pluginv1.InvocationContext{
-		PluginId: plugin.ID,
-	}})
-	now := time.Now().UTC()
+	response, err := runtimeAPI.ListEvents(ctx, &pluginv1.ListRuntimeEventsRequest{
+		PluginId:      id,
+		AfterSequence: after,
+		Limit:         limit,
+	})
 	if err != nil {
-		plugin.RuntimeState = types.PluginRuntimeUnhealthy
-		plugin.HealthMessage = err.Error()
-		plugin.LastHealthAt = &now
-		_ = s.repo.UpdateRuntimeState(ctx, id, plugin.RuntimeState, plugin.HealthMessage, &now)
-		return nil, fmt.Errorf("check plugin health: %w", err)
+		return nil, fmt.Errorf("list plugin runtime events: %w", err)
 	}
-	plugin.LastHealthAt = &now
-	plugin.HealthMessage = response.GetMessage()
-	if response.GetStatus() == pluginv1.HealthCheckResponse_STATUS_SERVING {
-		plugin.RuntimeState = types.PluginRuntimeRunning
-	} else {
-		plugin.RuntimeState = types.PluginRuntimeUnhealthy
+	return response.GetEvents(), nil
+}
+
+func resolvePluginManifest(ctx context.Context, input *PluginInstallInput) error {
+	if input == nil {
+		return errors.New("plugin install input is required")
 	}
-	if err := s.repo.UpdateRuntimeState(ctx, id, plugin.RuntimeState, plugin.HealthMessage, &now); err != nil {
-		return nil, err
+	manifestURL := strings.TrimSpace(input.ManifestURL)
+	hasYAML := len(strings.TrimSpace(string(input.ManifestYAML))) > 0
+	if manifestURL == "" {
+		if !hasYAML {
+			return errors.New("manifest_yaml or manifest_url is required")
+		}
+		return nil
 	}
-	return plugin, nil
+	if hasYAML {
+		return errors.New("manifest_yaml and manifest_url cannot be used together")
+	}
+	downloadURL, client, err := pluginManifestDownload(manifestURL)
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return fmt.Errorf("create manifest request: %w", err)
+	}
+	request.Header.Set("Accept", "application/yaml, text/yaml, text/plain, application/octet-stream")
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("download plugin manifest: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("download plugin manifest: HTTP %d", response.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxPluginManifestBytes+1))
+	if err != nil {
+		return fmt.Errorf("read plugin manifest: %w", err)
+	}
+	if len(data) > maxPluginManifestBytes {
+		return fmt.Errorf("plugin manifest exceeds %d bytes", maxPluginManifestBytes)
+	}
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return errors.New("downloaded plugin manifest is empty")
+	}
+	input.ManifestYAML = data
+	return nil
+}
+
+func (s *PluginService) RefreshHealth(ctx context.Context, id string) (*types.Plugin, error) {
+	return s.refreshHealth(ctx, id, false)
 }
 
 func (s *PluginService) validateInstallInput(
@@ -573,6 +740,7 @@ func (s *PluginService) auditLifecycle(
 func pluginEntity(
 	manifest *pluginsdk.Manifest,
 	actorUserID string,
+	sourceManifestURL string,
 	timeout time.Duration,
 	runtimeStatus *pluginv1.PluginRuntimeStatus,
 ) (*types.Plugin, error) {
@@ -598,6 +766,8 @@ func pluginEntity(
 		Manifest:                 types.JSON(manifestJSON),
 		Status:                   types.PluginStatusDisabled,
 		RuntimeState:             types.PluginRuntimeStopped,
+		SourceManifestURL:        strings.TrimSpace(sourceManifestURL),
+		LatestVersion:            strings.TrimPrefix(manifest.Metadata.Version, "v"),
 		CallTimeoutSeconds:       int(timeout.Seconds()),
 		InstalledBy:              actorUserID,
 		CreatedAt:                now,
