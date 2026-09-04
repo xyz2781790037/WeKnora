@@ -273,6 +273,26 @@
                 :label="configFieldText(option.label_key, option.label)"
               />
             </t-select>
+            <t-radio-group
+              v-else-if="field.type === 'boolean'"
+              v-model="providerForm.parameters.extra_config[field.key]"
+              variant="default-filled"
+            >
+              <t-radio-button value="true">True</t-radio-button>
+              <t-radio-button value="false">False</t-radio-button>
+            </t-radio-group>
+            <t-textarea
+              v-else-if="field.type === 'array'"
+              :value="webSearchArrayText(field.key)"
+              placeholder="每行一个值"
+              :autosize="{ minRows: 2, maxRows: 7 }"
+              @change="updateWebSearchArray(field.key, String($event ?? ''))"
+            />
+            <t-input
+              v-else
+              v-model="providerForm.parameters.extra_config[field.key]"
+              :type="field.type === 'number' || field.type === 'integer' ? 'number' : 'text'"
+            />
             <p v-if="field.description" class="form-desc">
               {{ configFieldText(field.description_key, field.description) }}
             </p>
@@ -489,6 +509,25 @@ const providerTypeLabel = (providerId: string) => {
 
 const configFieldText = (key: string | undefined, fallback: string) => {
   return key ? t(key, fallback) : fallback
+}
+
+const webSearchArrayText = (key: string) => {
+  const value = providerForm.value.parameters.extra_config?.[key]
+  if (!value) return ''
+  try {
+    const decoded = JSON.parse(value)
+    return Array.isArray(decoded) ? decoded.join('\n') : value
+  } catch {
+    return value
+  }
+}
+
+const updateWebSearchArray = (key: string, value: string) => {
+  const items = value.split(/\r?\n/).map(item => item.trim()).filter(Boolean)
+  providerForm.value.parameters.extra_config = {
+    ...(providerForm.value.parameters.extra_config || {}),
+    [key]: JSON.stringify(items),
+  }
 }
 
 const providerConfigDefaults = (providerId: string) => {

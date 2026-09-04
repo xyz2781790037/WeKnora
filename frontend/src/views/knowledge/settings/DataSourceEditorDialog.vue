@@ -20,6 +20,7 @@ import {
 } from '@/api/datasource'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
 import JSONSchemaFields, { type PluginJSONSchema } from '@/components/plugin/JSONSchemaFields.vue'
+import { validatePluginConfig } from '@/components/plugin/schema'
 import DataSourceTypeIcon from './DataSourceTypeIcon.vue'
 import { getDatasourceIconUrl } from './datasourceIcons'
 
@@ -901,8 +902,8 @@ async function testConnection() {
     MessagePlugin.success(t('datasource.testSuccess'))
   } catch (e: any) {
     testResult.value = 'error'
-    testErrorMsg.value = e?.message || e?.error || ''
-    MessagePlugin.error(t('datasource.testFailed'))
+    testErrorMsg.value = e?.message || e?.error || t('datasource.connectionFailed')
+    MessagePlugin.error(testErrorMsg.value)
   }
   testing.value = false
 }
@@ -1062,20 +1063,18 @@ function validateStep1Fields(): boolean {
   syncRssAuthHeadersToCredentials()
   if (!validateRssFeedUrls()) return false
 	if (isExternalConnector.value) {
-		const required = currentDef.value?.configSchema?.required || []
 		const secrets = new Set(currentDef.value?.secretFields || [])
-		for (const key of required) {
-			if (secrets.has(key) && isEdit.value && credentialsConfigured.value && !replaceCredentialsMode.value) {
-				continue
-			}
-			const value = secrets.has(key)
-				? form.value.config.credentials[key]
-				: form.value.config.settings[key]
-			if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
-				const title = currentDef.value?.configSchema?.properties?.[key]?.title || key
-				MessagePlugin.warning(`${title} ${t('datasource.isRequired')}`)
-				return false
-			}
+		const ignored = isEdit.value && credentialsConfigured.value && !replaceCredentialsMode.value
+			? secrets
+			: new Set<string>()
+		const validationError = validatePluginConfig(
+			currentDef.value?.configSchema,
+			{ ...form.value.config.settings, ...form.value.config.credentials },
+			{ ignoreRequired: ignored },
+		)
+		if (validationError) {
+			MessagePlugin.warning(validationError)
+			return false
 		}
 		return true
 	}
@@ -2350,9 +2349,8 @@ const drawerConfirmText = computed(() => {
   line-height: 1.4;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .footer-test-message.success {

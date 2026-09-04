@@ -75,6 +75,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useMarqueeSelect } from '@/hooks/useMarqueeSelect';
 import type { ParserEngineInfo } from '@/api/system';
+import { getConnectorTypes, type ConnectorMeta } from '@/api/datasource';
 const route = useRoute();
 const { t } = useI18n();
 const kbId = computed(() => (route.params as any).kbId as string || '');
@@ -586,27 +587,47 @@ const parseStatusOptions = computed(() => [
   { label: t('knowledgeBase.parseStatusDraft'), value: 'draft' },
 ]);
 const selectedSource = ref('');
+const externalSourceConnectors = ref<ConnectorMeta[]>([]);
 // Source filter combines ingestion channels and the "manual"/"url" virtual
 // sources that the backend routes onto the `type` column.
-const sourceOptions = computed(() => [
-  { label: t('knowledgeBase.allSources'), value: '' },
-  { label: t('knowledgeBase.sourceUpload'), value: 'web' },
-  { label: t('knowledgeBase.sourceUrl'), value: 'url' },
-  { label: t('knowledgeBase.sourceManual'), value: 'manual' },
-  { label: t('knowledgeBase.sourceApi'), value: 'api' },
-  { label: t('knowledgeBase.sourceBrowserExtension'), value: 'browser_extension' },
-  { label: t('knowledgeBase.channelFeishu'), value: 'feishu' },
-  { label: t('knowledgeBase.channelFeishuDrive'), value: 'feishu_drive' },
-  { label: t('knowledgeBase.channelNotion'), value: 'notion' },
-  { label: t('knowledgeBase.channelYuque'), value: 'yuque' },
-  { label: t('knowledgeBase.channelGitLab'), value: 'gitlab' },
-  { label: t('knowledgeBase.channelIma'), value: 'ima' },
-  { label: t('knowledgeBase.channelWechat'), value: 'wechat' },
-  { label: t('knowledgeBase.channelWecom'), value: 'wecom' },
-  { label: t('knowledgeBase.channelDingtalk'), value: 'dingtalk' },
-  { label: t('knowledgeBase.channelSlack'), value: 'slack' },
-  { label: t('knowledgeBase.channelIm'), value: 'im' },
-]);
+const sourceOptions = computed(() => {
+  const options = [
+    { label: t('knowledgeBase.allSources'), value: '' },
+    { label: t('knowledgeBase.sourceUpload'), value: 'web' },
+    { label: t('knowledgeBase.sourceUrl'), value: 'url' },
+    { label: t('knowledgeBase.sourceManual'), value: 'manual' },
+    { label: t('knowledgeBase.sourceApi'), value: 'api' },
+    { label: t('knowledgeBase.sourceBrowserExtension'), value: 'browser_extension' },
+    { label: t('knowledgeBase.channelFeishu'), value: 'feishu' },
+    { label: t('knowledgeBase.channelFeishuDrive'), value: 'feishu_drive' },
+    { label: t('knowledgeBase.channelNotion'), value: 'notion' },
+    { label: t('knowledgeBase.channelYuque'), value: 'yuque' },
+    { label: t('knowledgeBase.channelGitLab'), value: 'gitlab' },
+    { label: t('knowledgeBase.channelIma'), value: 'ima' },
+    { label: t('knowledgeBase.channelWechat'), value: 'wechat' },
+    { label: t('knowledgeBase.channelWecom'), value: 'wecom' },
+    { label: t('knowledgeBase.channelDingtalk'), value: 'dingtalk' },
+    { label: t('knowledgeBase.channelSlack'), value: 'slack' },
+    { label: t('knowledgeBase.channelIm'), value: 'im' },
+  ];
+  const knownSources = new Set(options.map(option => option.value));
+  for (const connector of externalSourceConnectors.value) {
+    if (!connector.type || knownSources.has(connector.type)) continue;
+    options.push({ label: connector.name || connector.type, value: connector.type });
+    knownSources.add(connector.type);
+  }
+  return options;
+});
+
+const loadExternalSourceConnectors = async () => {
+  try {
+    const response: any = await getConnectorTypes();
+    const connectors: ConnectorMeta[] = response?.data || response || [];
+    externalSourceConnectors.value = connectors.filter(connector => connector.origin === 'external');
+  } catch {
+    externalSourceConnectors.value = [];
+  }
+};
 // Date range as [start, end] in "YYYY-MM-DD" form (t-date-range-picker default).
 const updatedTimeRange = ref<string[]>([]);
 // Disable any date after today so users cannot filter into the future.
@@ -1263,6 +1284,7 @@ const handleOpenKnowledgeEvent = (e: Event) => {
 
 onMounted(() => {
   loadKnowledgeList();
+  loadExternalSourceConnectors();
   editorResources.ensureParserEngines();
 
   window.addEventListener('knowledgeFileUploaded', handleFileUploaded as EventListener);

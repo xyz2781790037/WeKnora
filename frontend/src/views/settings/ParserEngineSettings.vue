@@ -374,6 +374,17 @@
             </div>
           </div>
         </section>
+
+        <section v-if="currentEngine.Origin === 'external'" class="setting-drawer__section">
+          <h4 class="setting-drawer__section-title">插件配置</h4>
+          <JSONSchemaFields
+            :schema="currentEngine.ConfigSchema"
+            :model-value="currentPluginConfig"
+            :secret-fields="currentEngine.SecretFields"
+            mode="settings"
+            @update:model-value="updateCurrentPluginConfig"
+          />
+        </section>
       </div>
     </SettingDrawer>
   </div>
@@ -386,6 +397,8 @@ import { useUIStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { MessagePlugin } from 'tdesign-vue-next'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
+import JSONSchemaFields from '@/components/plugin/JSONSchemaFields.vue'
+import { validatePluginConfig } from '@/components/plugin/schema'
 import {
   getParserEngines,
   getParserEngineConfig,
@@ -437,6 +450,7 @@ const DEFAULT_PARSER_CONFIG: ParserEngineConfig = {
   paddleocr_vl_cloud_model: 'PaddleOCR-VL-1.6',
   paddleocr_vl_cloud_use_seal_recognition: true,
   paddleocr_vl_cloud_use_chart_recognition: false,
+  plugin: {},
 }
 
 const engines = ref<ParserEngineInfo[]>([])
@@ -457,6 +471,10 @@ const hasBuiltinEngine = computed(() => engines.value.some(e => e.Name === 'buil
 
 const drawerVisible = ref(false)
 const currentEngine = ref<ParserEngineInfo | null>(null)
+const currentPluginConfig = computed<Record<string, unknown>>(() => {
+  const pluginID = currentEngine.value?.PluginID
+  return pluginID ? config.value.plugin?.[pluginID] || {} : {}
+})
 const drawerTitle = computed(() => {
   return currentEngine.value ? getEngineDisplayName(currentEngine.value.Name) : ''
 })
@@ -495,7 +513,8 @@ const sortedEngines = computed(() => {
 })
 
 function hasConfigFields(engineName: string): boolean {
-  return CONFIGURABLE_ENGINES.has(engineName)
+	const engine = engines.value.find(item => item.Name === engineName)
+	return CONFIGURABLE_ENGINES.has(engineName) || Boolean(engine?.Origin === 'external' && Object.keys(engine.ConfigSchema?.properties || {}).length)
 }
 
 function engineDocLink(name: string): string | undefined {
@@ -530,6 +549,19 @@ function openDrawer(engine: ParserEngineInfo) {
   drawerVisible.value = true
   saveMessage.value = ''
   checkMessage.value = ''
+	if (engine.Origin === 'external' && engine.PluginID) {
+		const values = { ...(config.value.plugin?.[engine.PluginID] || {}) }
+		for (const [key, property] of Object.entries(engine.ConfigSchema?.properties || {})) {
+			if (values[key] === undefined && property.default !== undefined) values[key] = property.default
+		}
+		config.value.plugin = { ...(config.value.plugin || {}), [engine.PluginID]: values }
+	}
+}
+
+function updateCurrentPluginConfig(value: Record<string, unknown>) {
+	const pluginID = currentEngine.value?.PluginID
+	if (!pluginID) return
+	config.value.plugin = { ...(config.value.plugin || {}), [pluginID]: value }
 }
 
 async function loadEngines() {
@@ -575,6 +607,7 @@ async function loadConfig() {
       paddleocr_vl_cloud_model: data?.paddleocr_vl_cloud_model ?? DEFAULT_PARSER_CONFIG.paddleocr_vl_cloud_model ?? 'PaddleOCR-VL-1.6',
       paddleocr_vl_cloud_use_seal_recognition: data?.paddleocr_vl_cloud_use_seal_recognition ?? DEFAULT_PARSER_CONFIG.paddleocr_vl_cloud_use_seal_recognition ?? true,
       paddleocr_vl_cloud_use_chart_recognition: data?.paddleocr_vl_cloud_use_chart_recognition ?? DEFAULT_PARSER_CONFIG.paddleocr_vl_cloud_use_chart_recognition ?? false,
+		plugin: data?.plugin || {},
     }
   } catch {
     config.value = { ...DEFAULT_PARSER_CONFIG }
@@ -614,11 +647,18 @@ function buildConfigPayload(): ParserEngineConfig {
     paddleocr_vl_cloud_model: config.value.paddleocr_vl_cloud_model?.trim() ?? '',
     paddleocr_vl_cloud_use_seal_recognition: config.value.paddleocr_vl_cloud_use_seal_recognition,
     paddleocr_vl_cloud_use_chart_recognition: config.value.paddleocr_vl_cloud_use_chart_recognition,
+		plugin: config.value.plugin || {},
   }
 }
 
 async function onCheck() {
-  if (!connected) {
+  const validationError = validateCurrentPluginConfig()
+  if (validationError) {
+    checkMessage.value = validationError
+    saveSuccess.value = false
+    return
+  }
+  if (!connected.value) {
     checkMessage.value = t('settings.parser.ensureDocreaderConnected')
     return
   }
@@ -671,6 +711,11 @@ async function onCheck() {
 }
 
 async function onSave() {
+  const validationError = validateCurrentPluginConfig()
+  if (validationError) {
+    MessagePlugin.warning(validationError)
+    return
+  }
   saving.value = true
   saveMessage.value = ''
   try {
@@ -685,6 +730,11 @@ async function onSave() {
   } finally {
     saving.value = false
   }
+}
+
+function validateCurrentPluginConfig(): string | null {
+  if (currentEngine.value?.Origin !== 'external') return null
+  return validatePluginConfig(currentEngine.value.ConfigSchema, currentPluginConfig.value)
 }
 
 // ---- WeKnoraCloud 凭证状态 ----

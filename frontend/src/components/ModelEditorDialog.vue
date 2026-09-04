@@ -233,9 +233,16 @@
             <t-input v-model="formData.baseUrl" :placeholder="getBaseUrlPlaceholder()" />
           </div>
 
-          <div v-if="formData.provider !== 'weknoracloud'" class="form-item">
-            <label class="form-label">{{
-              isSignedRerank ? signedRerankAccessKeyLabel : $t('model.editor.apiKeyOptional')
+          <div
+            v-if="formData.provider !== 'weknoracloud' && (!selectedProvider?.external || isSignedRerank || requiresPluginAPIKey || requiresPluginAppSecret)"
+            class="form-item"
+          >
+            <label
+              v-if="!selectedProvider?.external || isSignedRerank || requiresPluginAPIKey"
+              class="form-label"
+              :class="{ required: isSignedRerank || requiresPluginAPIKey }"
+            >{{
+              isSignedRerank ? signedRerankAccessKeyLabel : requiresPluginAPIKey ? 'API Key' : $t('model.editor.apiKeyOptional')
             }}</label>
             <!--
               Edit mode: credentials live behind the /credentials subresource
@@ -250,7 +257,7 @@
             -->
             <CredentialResource v-if="isEdit && props.modelData?.id" :api="credentialApi" :fields="credentialFields"
               :meta="credentialMeta" />
-            <t-input v-else v-model="formData.apiKey" :type="showApiKey ? 'text' : 'password'"
+            <t-input v-else-if="!selectedProvider?.external || requiresPluginAPIKey" v-model="formData.apiKey" :type="showApiKey ? 'text' : 'password'"
               :placeholder="isSignedRerank ? signedRerankAccessKeyPlaceholder : apiKeyPlaceholder"
               class="api-key-input" autocomplete="off" spellcheck="false">
               <template #prefix-icon><t-icon name="lock-on" /></template>
@@ -267,10 +274,10 @@
           </div>
 
           <!-- AK/SK Rerank 创建模式：SecretKey（编辑模式由 CredentialResource 管理） -->
-          <div v-if="isSignedRerank && !isEdit" class="form-item">
-            <label class="form-label required">{{ signedRerankSecretKeyLabel }}</label>
+          <div v-if="(isSignedRerank || requiresPluginAppSecret) && !isEdit" class="form-item">
+            <label class="form-label required">{{ isSignedRerank ? signedRerankSecretKeyLabel : 'App Secret' }}</label>
             <t-input v-model="formData.appSecret" type="password"
-              :placeholder="signedRerankSecretKeyPlaceholder" autocomplete="off" spellcheck="false">
+              :placeholder="isSignedRerank ? signedRerankSecretKeyPlaceholder : 'App Secret'" autocomplete="off" spellcheck="false">
               <template #prefix-icon><t-icon name="lock-on" /></template>
             </t-input>
           </div>
@@ -279,6 +286,16 @@
             <label class="form-label">{{ $t('model.editor.lkeap.regionLabel') }}</label>
             <t-input v-model="formData.lkeapRegion" :placeholder="$t('model.editor.lkeap.regionPlaceholder')" />
             <p class="form-desc">{{ $t('model.editor.lkeap.regionDesc') }}</p>
+          </div>
+
+          <div v-if="externalPluginHasSettings" class="plugin-model-config">
+            <JSONSchemaFields
+              :schema="selectedProviderSettingsSchema"
+              :model-value="externalPluginConfig"
+              :secret-fields="[]"
+              mode="settings"
+              @update:model-value="updateExternalPluginConfig"
+            />
           </div>
 
           <!-- 自定义 HTTP Header（类似 OpenAI Python SDK 的 extra_headers） -->
@@ -412,6 +429,8 @@ import {
   type ThinkingControlValue,
 } from '@/utils/thinkingControl'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
+import JSONSchemaFields from '@/components/plugin/JSONSchemaFields.vue'
+import { normalizePluginConfig, validatePluginConfig } from '@/components/plugin/schema'
 import CredentialResource, {
   type CredentialFieldDef,
   type CredentialResourceApi,
@@ -447,6 +466,8 @@ interface ModelFormData {
   appSecret?: string
   /** LKEAP Rerank：地域，如 ap-guangzhou */
   lkeapRegion?: string
+  /** 外部模型供应商按 config.schema 生成的实例配置。 */
+  extraConfig?: Record<string, unknown>
 }
 
 type EditorModelType = 'chat' | 'embedding' | 'rerank' | 'vllm' | 'asr'
@@ -491,7 +512,7 @@ const apiProviderOptions = ref<ModelProviderOption[]>([])
 const loadingProviders = ref(false)
 
 // 硬编码的后备 Provider 配置 (当 API 不可用时使用)
-const fallbackProviderOptions = computed(() => [
+const fallbackProviderOptions = computed<ModelProviderOption[]>(() => [
   {
     value: 'openai',
     label: t('model.editor.providers.openai.label'),
@@ -630,6 +651,10 @@ const loadProviders = async () => {
     const providers = await listModelProviders(activeModelType.value)
     if (providers.length > 0) {
       apiProviderOptions.value = providers
+      const selected = providers.find(provider => provider.value === formData.value.provider)
+      if (selected?.configSchema) {
+        formData.value.extraConfig = normalizePluginConfig(selected.configSchema, formData.value.extraConfig || {})
+      }
     }
   } catch (error) {
     console.error('Failed to load providers from API, using fallback', error)
@@ -640,7 +665,7 @@ const loadProviders = async () => {
 
 // 根据当前模型类型过滤的 Provider 列表
 // API 返回的 defaultUrls/modelTypes 数据优先，但 label/description 使用 i18n
-const providerOptions = computed(() => {
+const providerOptions = computed<ModelProviderOption[]>(() => {
   // API 数据可用时，用 API 的结构数据 + i18n 的显示文本
   if (apiProviderOptions.value.length > 0) {
     return apiProviderOptions.value.map(p => ({
@@ -658,6 +683,55 @@ const providerOptions = computed(() => {
     p.modelTypes.includes(activeModelType.value)
   )
 })
+
+const selectedProvider = computed(() => (
+  providerOptions.value.find(option => option.value === formData.value.provider)
+))
+const pluginReservedConfigFields = new Set(['base_url', 'api_key', 'app_secret'])
+const selectedProviderSettingsSchema = computed(() => {
+  const schema = selectedProvider.value?.configSchema
+  if (!schema) return undefined
+  const properties = Object.fromEntries(
+    Object.entries(schema.properties || {}).filter(([key]) => !pluginReservedConfigFields.has(key)),
+  )
+  return {
+    ...schema,
+    properties,
+    required: (schema.required || []).filter(key => !pluginReservedConfigFields.has(key)),
+  }
+})
+const externalPluginConfig = computed<Record<string, unknown>>(() => formData.value.extraConfig || {})
+const externalPluginHasSettings = computed(() => (
+  selectedProvider.value?.external === true
+  && Object.keys(selectedProviderSettingsSchema.value?.properties || {}).length > 0
+))
+const requiresPluginAPIKey = computed(() => (
+  selectedProvider.value?.external === true
+  && (selectedProvider.value.secretFields || []).includes('api_key')
+))
+const requiresPluginAppSecret = computed(() => (
+  selectedProvider.value?.external === true
+  && (selectedProvider.value.secretFields || []).includes('app_secret')
+))
+
+function updateExternalPluginConfig(value: Record<string, unknown>) {
+  formData.value.extraConfig = value
+}
+
+function selectedProviderValidationError(): string | null {
+  if (!selectedProvider.value?.external || !selectedProvider.value.configSchema) return null
+  const secretFields = new Set(selectedProvider.value.secretFields || [])
+  return validatePluginConfig(
+    selectedProvider.value.configSchema,
+    normalizePluginConfig(selectedProvider.value.configSchema, {
+      ...(formData.value.extraConfig || {}),
+      base_url: formData.value.baseUrl || '',
+      api_key: formData.value.apiKey || '',
+      app_secret: formData.value.appSecret || '',
+    }),
+    { ignoreRequired: isEdit.value ? secretFields : new Set<string>() },
+  )
+}
 
 const dialogVisible = computed({
   get: () => props.visible,
@@ -760,18 +834,22 @@ const signedRerankCredentialHint = computed(() => (
 
 // Credential resource binding for the shared <CredentialResource> component.
 const credentialFields = computed<CredentialFieldDef<ModelCredentialField>[]>(() => {
-  const fields: CredentialFieldDef<ModelCredentialField>[] = [
-    {
+  const fields: CredentialFieldDef<ModelCredentialField>[] = []
+  if (!selectedProvider.value?.external || requiresPluginAPIKey.value) {
+    fields.push({
       key: 'api_key',
       label: (isSignedRerank.value
         ? signedRerankAccessKeyLabel.value
         : t('model.editor.apiKeyOptional')) as string,
-    },
-  ]
+    })
+  }
   if (formData.value.provider === 'weknoracloud') {
     fields.push({ key: 'app_secret', label: 'App Secret' })
-  } else if (isSignedRerank.value) {
-    fields.push({ key: 'app_secret', label: signedRerankSecretKeyLabel.value as string })
+  } else if (isSignedRerank.value || requiresPluginAppSecret.value) {
+    fields.push({
+      key: 'app_secret',
+      label: (isSignedRerank.value ? signedRerankSecretKeyLabel.value : 'App Secret') as string,
+    })
   }
   return fields
 })
@@ -879,6 +957,7 @@ const formData = ref<ModelFormData>({
   customHeaders: [],
   appSecret: '',
   lkeapRegion: 'ap-guangzhou',
+  extraConfig: {},
 })
 
 const rules = computed(() => ({
@@ -1120,6 +1199,7 @@ const resetForm = () => {
     customHeaders: [],
     appSecret: '',
     lkeapRegion: 'ap-guangzhou',
+    extraConfig: {},
   }
   modelChecked.value = false
   modelAvailable.value = false
@@ -1135,6 +1215,13 @@ const resetForm = () => {
 // 处理厂商选择变化 (自动填充默认 URL)
 const handleProviderChange = (value: string) => {
   const provider = providerOptions.value.find(opt => opt.value === value)
+  if (!hydratingForm.value) {
+    const defaults: Record<string, unknown> = {}
+    for (const [key, property] of Object.entries(provider?.configSchema?.properties || {})) {
+      if (!pluginReservedConfigFields.has(key) && property.default !== undefined) defaults[key] = property.default
+    }
+    formData.value.extraConfig = defaults
+  }
   if (provider && provider.defaultUrls) {
     // 根据当前模型类型获取对应的默认 URL
     const defaultUrl = provider.defaultUrls[activeModelType.value]
@@ -1342,6 +1429,11 @@ const checkRemoteAPI = async () => {
     MessagePlugin.warning(t('model.editor.fillModelAndUrl'))
     return
   }
+  const validationError = selectedProviderValidationError()
+  if (validationError) {
+    MessagePlugin.warning(validationError)
+    return
+  }
 
   checking.value = true
   remoteChecked.value = false
@@ -1365,6 +1457,17 @@ const checkRemoteAPI = async () => {
     const headerPayload = Object.keys(customHeaders).length > 0
       ? { customHeaders }
       : {}
+    const encodedPluginConfig: Record<string, string> = {}
+    for (const [key, value] of Object.entries(formData.value.extraConfig || {})) {
+      if (value === undefined || value === null || value === '') continue
+      encodedPluginConfig[key] = typeof value === 'string' ? value : JSON.stringify(value)
+    }
+    const pluginConfigPayload = selectedProvider.value?.external
+      ? {
+          extraConfig: encodedPluginConfig,
+          ...(formData.value.appSecret?.trim() ? { appSecret: formData.value.appSecret.trim() } : {}),
+        }
+      : {}
 
     // 根据模型类型调用不同的校验接口
     // 编辑模式下 apiKey 由 <CredentialResource> 独立管理、不在 formData 里。
@@ -1384,6 +1487,7 @@ const checkRemoteAPI = async () => {
           provider: formData.value.provider,
           ...idPayload,
           ...headerPayload,
+          ...pluginConfigPayload,
         })
         break
 
@@ -1399,6 +1503,7 @@ const checkRemoteAPI = async () => {
           provider: formData.value.provider,
           ...idPayload,
           ...headerPayload,
+          ...pluginConfigPayload,
         })
         // 如果测试成功且返回了维度，自动填充
         if (result.available && result.dimension) {
@@ -1430,6 +1535,7 @@ const checkRemoteAPI = async () => {
           ...idPayload,
           ...headerPayload,
           ...signedRerankExtra,
+          ...pluginConfigPayload,
         })
         break
       }
@@ -1521,6 +1627,12 @@ const handleConfirm = async () => {
         MessagePlugin.warning(t('model.editor.validation.baseUrlInvalid'))
         return
       }
+    }
+
+    const providerValidationError = selectedProviderValidationError()
+    if (providerValidationError) {
+      MessagePlugin.warning(providerValidationError)
+      return
     }
 
     // 执行表单验证

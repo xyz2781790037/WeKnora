@@ -584,8 +584,21 @@ export interface ModelProviderOption {
     value: string;        // provider 标识符
     label: string;        // 显示名称
     description: string;  // 描述
-    defaultUrls: Record<string, string>;  // 按模型类型区分的默认 URL
+    defaultUrls: Partial<Record<string, string>>;  // 按模型类型区分的默认 URL
     modelTypes: string[]; // 支持的模型类型
+    extraFields?: Array<{
+        key: string;
+        label: string;
+        type: string;
+        required: boolean;
+        default?: string;
+        placeholder?: string;
+        options?: Array<{ label: string; value: string }>;
+    }>;
+    configSchema?: PluginSchema;
+    secretFields?: string[];
+    requiresAuth?: boolean;
+    external?: boolean;
 }
 
 // 获取模型厂商列表
@@ -604,3 +617,4 @@ export function listModelProviders(modelType?: string): Promise<ModelProviderOpt
             });
     });
 }
+import type { PluginSchema } from '@/components/plugin/schema'

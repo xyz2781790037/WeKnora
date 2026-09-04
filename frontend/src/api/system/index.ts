@@ -107,12 +107,21 @@ export interface ParserEngineInfo {
   FileTypes: string[]
   Available?: boolean
   UnavailableReason?: string
+  Origin?: 'builtin' | 'external'
+  PluginID?: string
+  ConfigSchema?: {
+    type?: string
+    properties?: Record<string, any>
+    required?: string[]
+  }
+  SecretFields?: string[]
 }
 
 /** 解析引擎配置（引擎连接参数存空间；聊天附件解析策略在智能体中配置） */
 export type MinerUParseMethod = 'auto' | 'ocr' | 'txt'
 
 export interface ParserEngineConfig {
+	plugin?: Record<string, Record<string, unknown>>
   docreader_addr?: string
   docreader_transport?: string
   mineru_endpoint?: string
