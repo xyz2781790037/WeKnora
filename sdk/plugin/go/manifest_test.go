@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ metadata:
   name: Test source
   version: 1.2.3
 spec:
-  protocolVersion: 1.1.0
+  protocolVersion: 1.0.0
   weknoraVersion: ">=0.2.0"
   image: example.test/plugin:1.2.3
   types: [data_source]
@@ -71,6 +72,34 @@ spec:
 `))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "token")
+}
+
+func TestManifestRejectsNonStringSecretField(t *testing.T) {
+	_, err := ParseManifest([]byte(`
+apiVersion: weknora.io/v1
+kind: Plugin
+metadata:
+  id: io.weknora.datasource.test
+  name: Test source
+  version: 1.0.0
+spec:
+  protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
+  image: example.test/plugin:1.0.0
+  types: [data_source]
+  connectorType: external_test
+  config:
+    schema:
+      type: object
+      properties:
+        tokens:
+          type: array
+          items: {type: string}
+    secretFields: [tokens]
+  permissions:
+    network: false
+`))
+	require.ErrorContains(t, err, "must have type string")
 }
 
 func TestManifestRejectsAllowedHostsWithoutNetwork(t *testing.T) {
@@ -213,6 +242,93 @@ spec:
 `))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "document_metadata")
+}
+
+func TestRetrievalEngineManifest(t *testing.T) {
+	manifest, err := ParseManifest([]byte(`
+apiVersion: weknora.io/v1
+kind: Plugin
+metadata:
+  id: io.example.retrieval.test
+  name: Test retrieval
+  version: 1.0.0
+spec:
+  protocolVersion: 1.1.0
+  weknoraVersion: ">=0.2.0"
+  image: ghcr.io/example/retrieval:1.0.0
+  types: [retrieval_engine]
+  capabilities: [keywords, vector]
+  retrieverEngineType: example_retrieval
+  config:
+    schema:
+      type: object
+      properties: {}
+  permissions:
+    network: false
+    dataAccess: [document_content, document_metadata, query_text, embeddings]
+`))
+	require.NoError(t, err)
+	transport, err := manifest.ToProto()
+	require.NoError(t, err)
+	assert.Equal(t, "example_retrieval", transport.GetRetrieverEngineType())
+}
+
+func TestRetrievalEngineRequiresEmbeddingPermission(t *testing.T) {
+	_, err := ParseManifest([]byte(`
+apiVersion: weknora.io/v1
+kind: Plugin
+metadata:
+  id: io.example.retrieval.test
+  name: Test retrieval
+  version: 1.0.0
+spec:
+  protocolVersion: 1.1.0
+  weknoraVersion: ">=0.2.0"
+  image: ghcr.io/example/retrieval:1.0.0
+  types: [retrieval_engine]
+  capabilities: [vector]
+  retrieverEngineType: example_retrieval
+  config:
+    schema:
+      type: object
+      properties: {}
+  permissions:
+    network: false
+    dataAccess: [document_content, document_metadata]
+`))
+	require.ErrorContains(t, err, "embeddings")
+}
+
+func TestRetrievalEngineRequiresProtocol11(t *testing.T) {
+	_, err := ParseManifest([]byte(`
+apiVersion: weknora.io/v1
+kind: Plugin
+metadata:
+  id: io.example.retrieval.test
+  name: Test retrieval
+  version: 1.0.0
+spec:
+  protocolVersion: 1.0.0
+  weknoraVersion: ">=0.2.0"
+  image: ghcr.io/example/retrieval:1.0.0
+  types: [retrieval_engine]
+  capabilities: [keywords]
+  retrieverEngineType: example_retrieval
+  config:
+    schema:
+      type: object
+      properties: {}
+  permissions:
+    network: false
+    dataAccess: [document_content, document_metadata, query_text]
+`))
+	require.ErrorContains(t, err, "protocolVersion >=1.1.0")
+}
+
+func TestRetrieverEngineTypePatternBounds(t *testing.T) {
+	assert.True(t, retrieverEngineTypePattern.MatchString("x"))
+	assert.True(t, retrieverEngineTypePattern.MatchString("x"+strings.Repeat("1", 49)))
+	assert.False(t, retrieverEngineTypePattern.MatchString("x"+strings.Repeat("1", 50)))
 }
 
 func TestNegotiateProtocol(t *testing.T) {

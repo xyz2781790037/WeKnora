@@ -828,6 +828,306 @@ var ModelProviderPlugin_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	RetrievalEnginePlugin_Upsert_FullMethodName          = "/weknora.plugin.v1.RetrievalEnginePlugin/Upsert"
+	RetrievalEnginePlugin_Retrieve_FullMethodName        = "/weknora.plugin.v1.RetrievalEnginePlugin/Retrieve"
+	RetrievalEnginePlugin_EstimateStorage_FullMethodName = "/weknora.plugin.v1.RetrievalEnginePlugin/EstimateStorage"
+	RetrievalEnginePlugin_Delete_FullMethodName          = "/weknora.plugin.v1.RetrievalEnginePlugin/Delete"
+	RetrievalEnginePlugin_Copy_FullMethodName            = "/weknora.plugin.v1.RetrievalEnginePlugin/Copy"
+	RetrievalEnginePlugin_UpdateChunks_FullMethodName    = "/weknora.plugin.v1.RetrievalEnginePlugin/UpdateChunks"
+)
+
+// RetrievalEnginePluginClient is the client API for RetrievalEnginePlugin service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// RetrievalEnginePlugin persists chunk indices and executes vector or keyword
+// retrieval. WeKnora computes embeddings and owns cross-engine fusion; plugins
+// only implement the storage-facing repository operations.
+type RetrievalEnginePluginClient interface {
+	Upsert(ctx context.Context, in *RetrievalUpsertRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Retrieve(ctx context.Context, in *RetrievalRequest, opts ...grpc.CallOption) (*RetrievalResponse, error)
+	EstimateStorage(ctx context.Context, in *RetrievalEstimateStorageRequest, opts ...grpc.CallOption) (*RetrievalEstimateStorageResponse, error)
+	Delete(ctx context.Context, in *RetrievalDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Copy(ctx context.Context, in *RetrievalCopyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateChunks(ctx context.Context, in *RetrievalUpdateChunksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+}
+
+type retrievalEnginePluginClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewRetrievalEnginePluginClient(cc grpc.ClientConnInterface) RetrievalEnginePluginClient {
+	return &retrievalEnginePluginClient{cc}
+}
+
+func (c *retrievalEnginePluginClient) Upsert(ctx context.Context, in *RetrievalUpsertRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, RetrievalEnginePlugin_Upsert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *retrievalEnginePluginClient) Retrieve(ctx context.Context, in *RetrievalRequest, opts ...grpc.CallOption) (*RetrievalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetrievalResponse)
+	err := c.cc.Invoke(ctx, RetrievalEnginePlugin_Retrieve_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *retrievalEnginePluginClient) EstimateStorage(ctx context.Context, in *RetrievalEstimateStorageRequest, opts ...grpc.CallOption) (*RetrievalEstimateStorageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RetrievalEstimateStorageResponse)
+	err := c.cc.Invoke(ctx, RetrievalEnginePlugin_EstimateStorage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *retrievalEnginePluginClient) Delete(ctx context.Context, in *RetrievalDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, RetrievalEnginePlugin_Delete_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *retrievalEnginePluginClient) Copy(ctx context.Context, in *RetrievalCopyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, RetrievalEnginePlugin_Copy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *retrievalEnginePluginClient) UpdateChunks(ctx context.Context, in *RetrievalUpdateChunksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, RetrievalEnginePlugin_UpdateChunks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// RetrievalEnginePluginServer is the server API for RetrievalEnginePlugin service.
+// All implementations must embed UnimplementedRetrievalEnginePluginServer
+// for forward compatibility.
+//
+// RetrievalEnginePlugin persists chunk indices and executes vector or keyword
+// retrieval. WeKnora computes embeddings and owns cross-engine fusion; plugins
+// only implement the storage-facing repository operations.
+type RetrievalEnginePluginServer interface {
+	Upsert(context.Context, *RetrievalUpsertRequest) (*emptypb.Empty, error)
+	Retrieve(context.Context, *RetrievalRequest) (*RetrievalResponse, error)
+	EstimateStorage(context.Context, *RetrievalEstimateStorageRequest) (*RetrievalEstimateStorageResponse, error)
+	Delete(context.Context, *RetrievalDeleteRequest) (*emptypb.Empty, error)
+	Copy(context.Context, *RetrievalCopyRequest) (*emptypb.Empty, error)
+	UpdateChunks(context.Context, *RetrievalUpdateChunksRequest) (*emptypb.Empty, error)
+	mustEmbedUnimplementedRetrievalEnginePluginServer()
+}
+
+// UnimplementedRetrievalEnginePluginServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedRetrievalEnginePluginServer struct{}
+
+func (UnimplementedRetrievalEnginePluginServer) Upsert(context.Context, *RetrievalUpsertRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Upsert not implemented")
+}
+func (UnimplementedRetrievalEnginePluginServer) Retrieve(context.Context, *RetrievalRequest) (*RetrievalResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Retrieve not implemented")
+}
+func (UnimplementedRetrievalEnginePluginServer) EstimateStorage(context.Context, *RetrievalEstimateStorageRequest) (*RetrievalEstimateStorageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EstimateStorage not implemented")
+}
+func (UnimplementedRetrievalEnginePluginServer) Delete(context.Context, *RetrievalDeleteRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedRetrievalEnginePluginServer) Copy(context.Context, *RetrievalCopyRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Copy not implemented")
+}
+func (UnimplementedRetrievalEnginePluginServer) UpdateChunks(context.Context, *RetrievalUpdateChunksRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateChunks not implemented")
+}
+func (UnimplementedRetrievalEnginePluginServer) mustEmbedUnimplementedRetrievalEnginePluginServer() {}
+func (UnimplementedRetrievalEnginePluginServer) testEmbeddedByValue()                               {}
+
+// UnsafeRetrievalEnginePluginServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to RetrievalEnginePluginServer will
+// result in compilation errors.
+type UnsafeRetrievalEnginePluginServer interface {
+	mustEmbedUnimplementedRetrievalEnginePluginServer()
+}
+
+func RegisterRetrievalEnginePluginServer(s grpc.ServiceRegistrar, srv RetrievalEnginePluginServer) {
+	// If the following call panics, it indicates UnimplementedRetrievalEnginePluginServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&RetrievalEnginePlugin_ServiceDesc, srv)
+}
+
+func _RetrievalEnginePlugin_Upsert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetrievalUpsertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RetrievalEnginePluginServer).Upsert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RetrievalEnginePlugin_Upsert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RetrievalEnginePluginServer).Upsert(ctx, req.(*RetrievalUpsertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RetrievalEnginePlugin_Retrieve_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetrievalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RetrievalEnginePluginServer).Retrieve(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RetrievalEnginePlugin_Retrieve_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RetrievalEnginePluginServer).Retrieve(ctx, req.(*RetrievalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RetrievalEnginePlugin_EstimateStorage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetrievalEstimateStorageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RetrievalEnginePluginServer).EstimateStorage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RetrievalEnginePlugin_EstimateStorage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RetrievalEnginePluginServer).EstimateStorage(ctx, req.(*RetrievalEstimateStorageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RetrievalEnginePlugin_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetrievalDeleteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RetrievalEnginePluginServer).Delete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RetrievalEnginePlugin_Delete_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RetrievalEnginePluginServer).Delete(ctx, req.(*RetrievalDeleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RetrievalEnginePlugin_Copy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetrievalCopyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RetrievalEnginePluginServer).Copy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RetrievalEnginePlugin_Copy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RetrievalEnginePluginServer).Copy(ctx, req.(*RetrievalCopyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RetrievalEnginePlugin_UpdateChunks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RetrievalUpdateChunksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RetrievalEnginePluginServer).UpdateChunks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RetrievalEnginePlugin_UpdateChunks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RetrievalEnginePluginServer).UpdateChunks(ctx, req.(*RetrievalUpdateChunksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// RetrievalEnginePlugin_ServiceDesc is the grpc.ServiceDesc for RetrievalEnginePlugin service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var RetrievalEnginePlugin_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "weknora.plugin.v1.RetrievalEnginePlugin",
+	HandlerType: (*RetrievalEnginePluginServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Upsert",
+			Handler:    _RetrievalEnginePlugin_Upsert_Handler,
+		},
+		{
+			MethodName: "Retrieve",
+			Handler:    _RetrievalEnginePlugin_Retrieve_Handler,
+		},
+		{
+			MethodName: "EstimateStorage",
+			Handler:    _RetrievalEnginePlugin_EstimateStorage_Handler,
+		},
+		{
+			MethodName: "Delete",
+			Handler:    _RetrievalEnginePlugin_Delete_Handler,
+		},
+		{
+			MethodName: "Copy",
+			Handler:    _RetrievalEnginePlugin_Copy_Handler,
+		},
+		{
+			MethodName: "UpdateChunks",
+			Handler:    _RetrievalEnginePlugin_UpdateChunks_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/proto/plugin/v1/plugin.proto",
+}
+
+const (
 	PluginRuntime_Install_FullMethodName      = "/weknora.plugin.v1.PluginRuntime/Install"
 	PluginRuntime_Upgrade_FullMethodName      = "/weknora.plugin.v1.PluginRuntime/Upgrade"
 	PluginRuntime_Start_FullMethodName        = "/weknora.plugin.v1.PluginRuntime/Start"

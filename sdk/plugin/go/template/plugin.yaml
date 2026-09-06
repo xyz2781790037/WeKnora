@@ -6,7 +6,7 @@ metadata:
   description: WeKnora 外部数据源插件最小模板
   version: 0.1.0
 spec:
-  protocolVersion: 1.0.0
+  protocolVersion: 1.1.0
   weknoraVersion: ">=0.2.0"
   image: ghcr.io/your-org/weknora-example-source-plugin:0.1.0
   types:

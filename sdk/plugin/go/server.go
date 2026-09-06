@@ -39,12 +39,13 @@ type Health struct {
 // ServerOptions contains optional capability implementations. Additional
 // capability adapters can be added without changing the lifecycle contract.
 type ServerOptions struct {
-	Lifecycle      LifecycleHooks
-	DataSource     DataSourceHandler
-	DocumentParser DocumentParserHandler
-	WebSearch      WebSearchHandler
-	ModelProvider  ModelProviderHandler
-	GRPC           []grpc.ServerOption
+	Lifecycle       LifecycleHooks
+	DataSource      DataSourceHandler
+	DocumentParser  DocumentParserHandler
+	WebSearch       WebSearchHandler
+	ModelProvider   ModelProviderHandler
+	RetrievalEngine RetrievalEngineHandler
+	GRPC            []grpc.ServerOption
 }
 
 // Server hosts one plugin manifest and its capability implementations.
@@ -54,15 +55,17 @@ type Server struct {
 	pluginv1.UnimplementedDocumentParserPluginServer
 	pluginv1.UnimplementedWebSearchPluginServer
 	pluginv1.UnimplementedModelProviderPluginServer
+	pluginv1.UnimplementedRetrievalEnginePluginServer
 
-	manifest       *Manifest
-	hooks          LifecycleHooks
-	dataSource     DataSourceHandler
-	documentParser DocumentParserHandler
-	webSearch      WebSearchHandler
-	modelProvider  ModelProviderHandler
-	grpcServer     *grpc.Server
-	stopOnce       sync.Once
+	manifest        *Manifest
+	hooks           LifecycleHooks
+	dataSource      DataSourceHandler
+	documentParser  DocumentParserHandler
+	webSearch       WebSearchHandler
+	modelProvider   ModelProviderHandler
+	retrievalEngine RetrievalEngineHandler
+	grpcServer      *grpc.Server
+	stopOnce        sync.Once
 }
 
 // NewServer validates the manifest before opening any listener.
@@ -82,14 +85,18 @@ func NewServer(manifest *Manifest, options ServerOptions) (*Server, error) {
 	if containsType(manifest.NormalizedTypes(), "model_provider") && options.ModelProvider == nil {
 		return nil, errors.New("manifest declares model_provider but no ModelProvider handler was provided")
 	}
+	if containsType(manifest.NormalizedTypes(), "retrieval_engine") && options.RetrievalEngine == nil {
+		return nil, errors.New("manifest declares retrieval_engine but no RetrievalEngine handler was provided")
+	}
 	return &Server{
-		manifest:       manifest,
-		hooks:          options.Lifecycle,
-		dataSource:     options.DataSource,
-		documentParser: options.DocumentParser,
-		webSearch:      options.WebSearch,
-		modelProvider:  options.ModelProvider,
-		grpcServer:     grpc.NewServer(options.GRPC...),
+		manifest:        manifest,
+		hooks:           options.Lifecycle,
+		dataSource:      options.DataSource,
+		documentParser:  options.DocumentParser,
+		webSearch:       options.WebSearch,
+		modelProvider:   options.ModelProvider,
+		retrievalEngine: options.RetrievalEngine,
+		grpcServer:      grpc.NewServer(options.GRPC...),
 	}, nil
 }
 
@@ -116,6 +123,9 @@ func (s *Server) Serve(ctx context.Context, address string) error {
 	}
 	if s.modelProvider != nil {
 		pluginv1.RegisterModelProviderPluginServer(s.grpcServer, s)
+	}
+	if s.retrievalEngine != nil {
+		pluginv1.RegisterRetrievalEnginePluginServer(s.grpcServer, s)
 	}
 	reflection.Register(s.grpcServer)
 

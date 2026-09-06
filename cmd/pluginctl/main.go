@@ -41,7 +41,7 @@ func main() {
 
 func runInit(args []string) error {
 	set := flag.NewFlagSet("init", flag.ContinueOnError)
-	pluginType := set.String("type", "", "data_source, document_parser, web_search or model_provider")
+	pluginType := set.String("type", "", "data_source, document_parser, web_search, model_provider or retrieval_engine")
 	id := set.String("id", "", "reverse-DNS plugin ID")
 	name := set.String("name", "", "display name")
 	output := set.String("output", "", "empty output directory")

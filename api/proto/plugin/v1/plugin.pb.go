@@ -27,11 +27,12 @@ const (
 type PluginType int32
 
 const (
-	PluginType_PLUGIN_TYPE_UNSPECIFIED     PluginType = 0
-	PluginType_PLUGIN_TYPE_DATA_SOURCE     PluginType = 1
-	PluginType_PLUGIN_TYPE_DOCUMENT_PARSER PluginType = 2
-	PluginType_PLUGIN_TYPE_WEB_SEARCH      PluginType = 3
-	PluginType_PLUGIN_TYPE_MODEL_PROVIDER  PluginType = 4
+	PluginType_PLUGIN_TYPE_UNSPECIFIED      PluginType = 0
+	PluginType_PLUGIN_TYPE_DATA_SOURCE      PluginType = 1
+	PluginType_PLUGIN_TYPE_DOCUMENT_PARSER  PluginType = 2
+	PluginType_PLUGIN_TYPE_WEB_SEARCH       PluginType = 3
+	PluginType_PLUGIN_TYPE_MODEL_PROVIDER   PluginType = 4
+	PluginType_PLUGIN_TYPE_RETRIEVAL_ENGINE PluginType = 5
 )
 
 // Enum value maps for PluginType.
@@ -42,13 +43,15 @@ var (
 		2: "PLUGIN_TYPE_DOCUMENT_PARSER",
 		3: "PLUGIN_TYPE_WEB_SEARCH",
 		4: "PLUGIN_TYPE_MODEL_PROVIDER",
+		5: "PLUGIN_TYPE_RETRIEVAL_ENGINE",
 	}
 	PluginType_value = map[string]int32{
-		"PLUGIN_TYPE_UNSPECIFIED":     0,
-		"PLUGIN_TYPE_DATA_SOURCE":     1,
-		"PLUGIN_TYPE_DOCUMENT_PARSER": 2,
-		"PLUGIN_TYPE_WEB_SEARCH":      3,
-		"PLUGIN_TYPE_MODEL_PROVIDER":  4,
+		"PLUGIN_TYPE_UNSPECIFIED":      0,
+		"PLUGIN_TYPE_DATA_SOURCE":      1,
+		"PLUGIN_TYPE_DOCUMENT_PARSER":  2,
+		"PLUGIN_TYPE_WEB_SEARCH":       3,
+		"PLUGIN_TYPE_MODEL_PROVIDER":   4,
+		"PLUGIN_TYPE_RETRIEVAL_ENGINE": 5,
 	}
 )
 
@@ -87,6 +90,7 @@ const (
 	DataAccess_DATA_ACCESS_DOCUMENT_METADATA DataAccess = 2
 	DataAccess_DATA_ACCESS_QUERY_TEXT        DataAccess = 3
 	DataAccess_DATA_ACCESS_CONVERSATION      DataAccess = 4
+	DataAccess_DATA_ACCESS_EMBEDDINGS        DataAccess = 5
 )
 
 // Enum value maps for DataAccess.
@@ -97,6 +101,7 @@ var (
 		2: "DATA_ACCESS_DOCUMENT_METADATA",
 		3: "DATA_ACCESS_QUERY_TEXT",
 		4: "DATA_ACCESS_CONVERSATION",
+		5: "DATA_ACCESS_EMBEDDINGS",
 	}
 	DataAccess_value = map[string]int32{
 		"DATA_ACCESS_UNSPECIFIED":       0,
@@ -104,6 +109,7 @@ var (
 		"DATA_ACCESS_DOCUMENT_METADATA": 2,
 		"DATA_ACCESS_QUERY_TEXT":        3,
 		"DATA_ACCESS_CONVERSATION":      4,
+		"DATA_ACCESS_EMBEDDINGS":        5,
 	}
 )
 
@@ -186,6 +192,107 @@ func (ModelCapability) EnumDescriptor() ([]byte, []int) {
 	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{2}
 }
 
+type PluginRetrieverType int32
+
+const (
+	PluginRetrieverType_PLUGIN_RETRIEVER_TYPE_UNSPECIFIED PluginRetrieverType = 0
+	PluginRetrieverType_PLUGIN_RETRIEVER_TYPE_KEYWORDS    PluginRetrieverType = 1
+	PluginRetrieverType_PLUGIN_RETRIEVER_TYPE_VECTOR      PluginRetrieverType = 2
+)
+
+// Enum value maps for PluginRetrieverType.
+var (
+	PluginRetrieverType_name = map[int32]string{
+		0: "PLUGIN_RETRIEVER_TYPE_UNSPECIFIED",
+		1: "PLUGIN_RETRIEVER_TYPE_KEYWORDS",
+		2: "PLUGIN_RETRIEVER_TYPE_VECTOR",
+	}
+	PluginRetrieverType_value = map[string]int32{
+		"PLUGIN_RETRIEVER_TYPE_UNSPECIFIED": 0,
+		"PLUGIN_RETRIEVER_TYPE_KEYWORDS":    1,
+		"PLUGIN_RETRIEVER_TYPE_VECTOR":      2,
+	}
+)
+
+func (x PluginRetrieverType) Enum() *PluginRetrieverType {
+	p := new(PluginRetrieverType)
+	*p = x
+	return p
+}
+
+func (x PluginRetrieverType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PluginRetrieverType) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_proto_plugin_v1_plugin_proto_enumTypes[3].Descriptor()
+}
+
+func (PluginRetrieverType) Type() protoreflect.EnumType {
+	return &file_api_proto_plugin_v1_plugin_proto_enumTypes[3]
+}
+
+func (x PluginRetrieverType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PluginRetrieverType.Descriptor instead.
+func (PluginRetrieverType) EnumDescriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{3}
+}
+
+type RetrievalDeleteTarget int32
+
+const (
+	RetrievalDeleteTarget_RETRIEVAL_DELETE_TARGET_UNSPECIFIED RetrievalDeleteTarget = 0
+	RetrievalDeleteTarget_RETRIEVAL_DELETE_TARGET_CHUNK       RetrievalDeleteTarget = 1
+	RetrievalDeleteTarget_RETRIEVAL_DELETE_TARGET_SOURCE      RetrievalDeleteTarget = 2
+	RetrievalDeleteTarget_RETRIEVAL_DELETE_TARGET_KNOWLEDGE   RetrievalDeleteTarget = 3
+)
+
+// Enum value maps for RetrievalDeleteTarget.
+var (
+	RetrievalDeleteTarget_name = map[int32]string{
+		0: "RETRIEVAL_DELETE_TARGET_UNSPECIFIED",
+		1: "RETRIEVAL_DELETE_TARGET_CHUNK",
+		2: "RETRIEVAL_DELETE_TARGET_SOURCE",
+		3: "RETRIEVAL_DELETE_TARGET_KNOWLEDGE",
+	}
+	RetrievalDeleteTarget_value = map[string]int32{
+		"RETRIEVAL_DELETE_TARGET_UNSPECIFIED": 0,
+		"RETRIEVAL_DELETE_TARGET_CHUNK":       1,
+		"RETRIEVAL_DELETE_TARGET_SOURCE":      2,
+		"RETRIEVAL_DELETE_TARGET_KNOWLEDGE":   3,
+	}
+)
+
+func (x RetrievalDeleteTarget) Enum() *RetrievalDeleteTarget {
+	p := new(RetrievalDeleteTarget)
+	*p = x
+	return p
+}
+
+func (x RetrievalDeleteTarget) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RetrievalDeleteTarget) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_proto_plugin_v1_plugin_proto_enumTypes[4].Descriptor()
+}
+
+func (RetrievalDeleteTarget) Type() protoreflect.EnumType {
+	return &file_api_proto_plugin_v1_plugin_proto_enumTypes[4]
+}
+
+func (x RetrievalDeleteTarget) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RetrievalDeleteTarget.Descriptor instead.
+func (RetrievalDeleteTarget) EnumDescriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{4}
+}
+
 type RuntimeState int32
 
 const (
@@ -231,11 +338,11 @@ func (x RuntimeState) String() string {
 }
 
 func (RuntimeState) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_proto_plugin_v1_plugin_proto_enumTypes[3].Descriptor()
+	return file_api_proto_plugin_v1_plugin_proto_enumTypes[5].Descriptor()
 }
 
 func (RuntimeState) Type() protoreflect.EnumType {
-	return &file_api_proto_plugin_v1_plugin_proto_enumTypes[3]
+	return &file_api_proto_plugin_v1_plugin_proto_enumTypes[5]
 }
 
 func (x RuntimeState) Number() protoreflect.EnumNumber {
@@ -244,7 +351,7 @@ func (x RuntimeState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RuntimeState.Descriptor instead.
 func (RuntimeState) EnumDescriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{5}
 }
 
 type HealthCheckResponse_Status int32
@@ -283,11 +390,11 @@ func (x HealthCheckResponse_Status) String() string {
 }
 
 func (HealthCheckResponse_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_proto_plugin_v1_plugin_proto_enumTypes[4].Descriptor()
+	return file_api_proto_plugin_v1_plugin_proto_enumTypes[6].Descriptor()
 }
 
 func (HealthCheckResponse_Status) Type() protoreflect.EnumType {
-	return &file_api_proto_plugin_v1_plugin_proto_enumTypes[4]
+	return &file_api_proto_plugin_v1_plugin_proto_enumTypes[6]
 }
 
 func (x HealthCheckResponse_Status) Number() protoreflect.EnumNumber {
@@ -317,6 +424,7 @@ type PluginManifest struct {
 	Icon                     string                 `protobuf:"bytes,14,opt,name=icon,proto3" json:"icon,omitempty"`
 	SupplyChain              *PluginSupplyChain     `protobuf:"bytes,15,opt,name=supply_chain,json=supplyChain,proto3" json:"supply_chain,omitempty"`
 	Resources                *PluginResourceLimits  `protobuf:"bytes,16,opt,name=resources,proto3" json:"resources,omitempty"`
+	RetrieverEngineType      string                 `protobuf:"bytes,17,opt,name=retriever_engine_type,json=retrieverEngineType,proto3" json:"retriever_engine_type,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -461,6 +569,13 @@ func (x *PluginManifest) GetResources() *PluginResourceLimits {
 		return x.Resources
 	}
 	return nil
+}
+
+func (x *PluginManifest) GetRetrieverEngineType() string {
+	if x != nil {
+		return x.RetrieverEngineType
+	}
+	return ""
 }
 
 // PluginSupplyChain binds a release to one immutable image digest. The
@@ -3440,6 +3555,922 @@ func (x *ModelUsage) GetOutputTokens() uint64 {
 	return 0
 }
 
+type RetrievalIndexDocument struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Content         string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	SourceId        string                 `protobuf:"bytes,3,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	SourceType      int32                  `protobuf:"varint,4,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	ChunkId         string                 `protobuf:"bytes,5,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	KnowledgeId     string                 `protobuf:"bytes,6,opt,name=knowledge_id,json=knowledgeId,proto3" json:"knowledge_id,omitempty"`
+	KnowledgeBaseId string                 `protobuf:"bytes,7,opt,name=knowledge_base_id,json=knowledgeBaseId,proto3" json:"knowledge_base_id,omitempty"`
+	KnowledgeType   string                 `protobuf:"bytes,8,opt,name=knowledge_type,json=knowledgeType,proto3" json:"knowledge_type,omitempty"`
+	TagId           string                 `protobuf:"bytes,9,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	IsEnabled       bool                   `protobuf:"varint,10,opt,name=is_enabled,json=isEnabled,proto3" json:"is_enabled,omitempty"`
+	IsRecommended   bool                   `protobuf:"varint,11,opt,name=is_recommended,json=isRecommended,proto3" json:"is_recommended,omitempty"`
+	Embedding       []float32              `protobuf:"fixed32,12,rep,packed,name=embedding,proto3" json:"embedding,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RetrievalIndexDocument) Reset() {
+	*x = RetrievalIndexDocument{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalIndexDocument) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalIndexDocument) ProtoMessage() {}
+
+func (x *RetrievalIndexDocument) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalIndexDocument.ProtoReflect.Descriptor instead.
+func (*RetrievalIndexDocument) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *RetrievalIndexDocument) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RetrievalIndexDocument) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *RetrievalIndexDocument) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+func (x *RetrievalIndexDocument) GetSourceType() int32 {
+	if x != nil {
+		return x.SourceType
+	}
+	return 0
+}
+
+func (x *RetrievalIndexDocument) GetChunkId() string {
+	if x != nil {
+		return x.ChunkId
+	}
+	return ""
+}
+
+func (x *RetrievalIndexDocument) GetKnowledgeId() string {
+	if x != nil {
+		return x.KnowledgeId
+	}
+	return ""
+}
+
+func (x *RetrievalIndexDocument) GetKnowledgeBaseId() string {
+	if x != nil {
+		return x.KnowledgeBaseId
+	}
+	return ""
+}
+
+func (x *RetrievalIndexDocument) GetKnowledgeType() string {
+	if x != nil {
+		return x.KnowledgeType
+	}
+	return ""
+}
+
+func (x *RetrievalIndexDocument) GetTagId() string {
+	if x != nil {
+		return x.TagId
+	}
+	return ""
+}
+
+func (x *RetrievalIndexDocument) GetIsEnabled() bool {
+	if x != nil {
+		return x.IsEnabled
+	}
+	return false
+}
+
+func (x *RetrievalIndexDocument) GetIsRecommended() bool {
+	if x != nil {
+		return x.IsRecommended
+	}
+	return false
+}
+
+func (x *RetrievalIndexDocument) GetEmbedding() []float32 {
+	if x != nil {
+		return x.Embedding
+	}
+	return nil
+}
+
+type RetrievalUpsertRequest struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Context       *InvocationContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	ConfigJson    []byte                    `protobuf:"bytes,2,opt,name=config_json,json=configJson,proto3" json:"config_json,omitempty"`
+	Documents     []*RetrievalIndexDocument `protobuf:"bytes,3,rep,name=documents,proto3" json:"documents,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetrievalUpsertRequest) Reset() {
+	*x = RetrievalUpsertRequest{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalUpsertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalUpsertRequest) ProtoMessage() {}
+
+func (x *RetrievalUpsertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalUpsertRequest.ProtoReflect.Descriptor instead.
+func (*RetrievalUpsertRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *RetrievalUpsertRequest) GetContext() *InvocationContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RetrievalUpsertRequest) GetConfigJson() []byte {
+	if x != nil {
+		return x.ConfigJson
+	}
+	return nil
+}
+
+func (x *RetrievalUpsertRequest) GetDocuments() []*RetrievalIndexDocument {
+	if x != nil {
+		return x.Documents
+	}
+	return nil
+}
+
+type RetrievalRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Context              *InvocationContext     `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	ConfigJson           []byte                 `protobuf:"bytes,2,opt,name=config_json,json=configJson,proto3" json:"config_json,omitempty"`
+	Query                string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Embedding            []float32              `protobuf:"fixed32,4,rep,packed,name=embedding,proto3" json:"embedding,omitempty"`
+	KnowledgeBaseIds     []string               `protobuf:"bytes,5,rep,name=knowledge_base_ids,json=knowledgeBaseIds,proto3" json:"knowledge_base_ids,omitempty"`
+	KnowledgeIds         []string               `protobuf:"bytes,6,rep,name=knowledge_ids,json=knowledgeIds,proto3" json:"knowledge_ids,omitempty"`
+	TagIds               []string               `protobuf:"bytes,7,rep,name=tag_ids,json=tagIds,proto3" json:"tag_ids,omitempty"`
+	ExcludeKnowledgeIds  []string               `protobuf:"bytes,8,rep,name=exclude_knowledge_ids,json=excludeKnowledgeIds,proto3" json:"exclude_knowledge_ids,omitempty"`
+	ExcludeChunkIds      []string               `protobuf:"bytes,9,rep,name=exclude_chunk_ids,json=excludeChunkIds,proto3" json:"exclude_chunk_ids,omitempty"`
+	TopK                 uint32                 `protobuf:"varint,10,opt,name=top_k,json=topK,proto3" json:"top_k,omitempty"`
+	Threshold            float64                `protobuf:"fixed64,11,opt,name=threshold,proto3" json:"threshold,omitempty"`
+	KnowledgeType        string                 `protobuf:"bytes,12,opt,name=knowledge_type,json=knowledgeType,proto3" json:"knowledge_type,omitempty"`
+	AdditionalParamsJson []byte                 `protobuf:"bytes,13,opt,name=additional_params_json,json=additionalParamsJson,proto3" json:"additional_params_json,omitempty"`
+	RetrieverType        PluginRetrieverType    `protobuf:"varint,14,opt,name=retriever_type,json=retrieverType,proto3,enum=weknora.plugin.v1.PluginRetrieverType" json:"retriever_type,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *RetrievalRequest) Reset() {
+	*x = RetrievalRequest{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalRequest) ProtoMessage() {}
+
+func (x *RetrievalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalRequest.ProtoReflect.Descriptor instead.
+func (*RetrievalRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *RetrievalRequest) GetContext() *InvocationContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetConfigJson() []byte {
+	if x != nil {
+		return x.ConfigJson
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *RetrievalRequest) GetEmbedding() []float32 {
+	if x != nil {
+		return x.Embedding
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetKnowledgeBaseIds() []string {
+	if x != nil {
+		return x.KnowledgeBaseIds
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetKnowledgeIds() []string {
+	if x != nil {
+		return x.KnowledgeIds
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetTagIds() []string {
+	if x != nil {
+		return x.TagIds
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetExcludeKnowledgeIds() []string {
+	if x != nil {
+		return x.ExcludeKnowledgeIds
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetExcludeChunkIds() []string {
+	if x != nil {
+		return x.ExcludeChunkIds
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetTopK() uint32 {
+	if x != nil {
+		return x.TopK
+	}
+	return 0
+}
+
+func (x *RetrievalRequest) GetThreshold() float64 {
+	if x != nil {
+		return x.Threshold
+	}
+	return 0
+}
+
+func (x *RetrievalRequest) GetKnowledgeType() string {
+	if x != nil {
+		return x.KnowledgeType
+	}
+	return ""
+}
+
+func (x *RetrievalRequest) GetAdditionalParamsJson() []byte {
+	if x != nil {
+		return x.AdditionalParamsJson
+	}
+	return nil
+}
+
+func (x *RetrievalRequest) GetRetrieverType() PluginRetrieverType {
+	if x != nil {
+		return x.RetrieverType
+	}
+	return PluginRetrieverType_PLUGIN_RETRIEVER_TYPE_UNSPECIFIED
+}
+
+type RetrievalResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Results       []*RetrievalResultSet  `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetrievalResponse) Reset() {
+	*x = RetrievalResponse{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalResponse) ProtoMessage() {}
+
+func (x *RetrievalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalResponse.ProtoReflect.Descriptor instead.
+func (*RetrievalResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *RetrievalResponse) GetResults() []*RetrievalResultSet {
+	if x != nil {
+		return x.Results
+	}
+	return nil
+}
+
+type RetrievalResultSet struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RetrieverType PluginRetrieverType    `protobuf:"varint,1,opt,name=retriever_type,json=retrieverType,proto3,enum=weknora.plugin.v1.PluginRetrieverType" json:"retriever_type,omitempty"`
+	Hits          []*RetrievalHit        `protobuf:"bytes,2,rep,name=hits,proto3" json:"hits,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetrievalResultSet) Reset() {
+	*x = RetrievalResultSet{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalResultSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalResultSet) ProtoMessage() {}
+
+func (x *RetrievalResultSet) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalResultSet.ProtoReflect.Descriptor instead.
+func (*RetrievalResultSet) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *RetrievalResultSet) GetRetrieverType() PluginRetrieverType {
+	if x != nil {
+		return x.RetrieverType
+	}
+	return PluginRetrieverType_PLUGIN_RETRIEVER_TYPE_UNSPECIFIED
+}
+
+func (x *RetrievalResultSet) GetHits() []*RetrievalHit {
+	if x != nil {
+		return x.Hits
+	}
+	return nil
+}
+
+type RetrievalHit struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Content         string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	SourceId        string                 `protobuf:"bytes,3,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	SourceType      int32                  `protobuf:"varint,4,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	ChunkId         string                 `protobuf:"bytes,5,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	KnowledgeId     string                 `protobuf:"bytes,6,opt,name=knowledge_id,json=knowledgeId,proto3" json:"knowledge_id,omitempty"`
+	KnowledgeBaseId string                 `protobuf:"bytes,7,opt,name=knowledge_base_id,json=knowledgeBaseId,proto3" json:"knowledge_base_id,omitempty"`
+	TagId           string                 `protobuf:"bytes,8,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	Score           float64                `protobuf:"fixed64,9,opt,name=score,proto3" json:"score,omitempty"`
+	MatchType       int32                  `protobuf:"varint,10,opt,name=match_type,json=matchType,proto3" json:"match_type,omitempty"`
+	IsEnabled       bool                   `protobuf:"varint,11,opt,name=is_enabled,json=isEnabled,proto3" json:"is_enabled,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RetrievalHit) Reset() {
+	*x = RetrievalHit{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalHit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalHit) ProtoMessage() {}
+
+func (x *RetrievalHit) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalHit.ProtoReflect.Descriptor instead.
+func (*RetrievalHit) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *RetrievalHit) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RetrievalHit) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *RetrievalHit) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+func (x *RetrievalHit) GetSourceType() int32 {
+	if x != nil {
+		return x.SourceType
+	}
+	return 0
+}
+
+func (x *RetrievalHit) GetChunkId() string {
+	if x != nil {
+		return x.ChunkId
+	}
+	return ""
+}
+
+func (x *RetrievalHit) GetKnowledgeId() string {
+	if x != nil {
+		return x.KnowledgeId
+	}
+	return ""
+}
+
+func (x *RetrievalHit) GetKnowledgeBaseId() string {
+	if x != nil {
+		return x.KnowledgeBaseId
+	}
+	return ""
+}
+
+func (x *RetrievalHit) GetTagId() string {
+	if x != nil {
+		return x.TagId
+	}
+	return ""
+}
+
+func (x *RetrievalHit) GetScore() float64 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *RetrievalHit) GetMatchType() int32 {
+	if x != nil {
+		return x.MatchType
+	}
+	return 0
+}
+
+func (x *RetrievalHit) GetIsEnabled() bool {
+	if x != nil {
+		return x.IsEnabled
+	}
+	return false
+}
+
+type RetrievalEstimateStorageRequest struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Context       *InvocationContext        `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	ConfigJson    []byte                    `protobuf:"bytes,2,opt,name=config_json,json=configJson,proto3" json:"config_json,omitempty"`
+	Documents     []*RetrievalIndexDocument `protobuf:"bytes,3,rep,name=documents,proto3" json:"documents,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetrievalEstimateStorageRequest) Reset() {
+	*x = RetrievalEstimateStorageRequest{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalEstimateStorageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalEstimateStorageRequest) ProtoMessage() {}
+
+func (x *RetrievalEstimateStorageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalEstimateStorageRequest.ProtoReflect.Descriptor instead.
+func (*RetrievalEstimateStorageRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *RetrievalEstimateStorageRequest) GetContext() *InvocationContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RetrievalEstimateStorageRequest) GetConfigJson() []byte {
+	if x != nil {
+		return x.ConfigJson
+	}
+	return nil
+}
+
+func (x *RetrievalEstimateStorageRequest) GetDocuments() []*RetrievalIndexDocument {
+	if x != nil {
+		return x.Documents
+	}
+	return nil
+}
+
+type RetrievalEstimateStorageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Bytes         int64                  `protobuf:"varint,1,opt,name=bytes,proto3" json:"bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetrievalEstimateStorageResponse) Reset() {
+	*x = RetrievalEstimateStorageResponse{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalEstimateStorageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalEstimateStorageResponse) ProtoMessage() {}
+
+func (x *RetrievalEstimateStorageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalEstimateStorageResponse.ProtoReflect.Descriptor instead.
+func (*RetrievalEstimateStorageResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *RetrievalEstimateStorageResponse) GetBytes() int64 {
+	if x != nil {
+		return x.Bytes
+	}
+	return 0
+}
+
+type RetrievalDeleteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *InvocationContext     `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	ConfigJson    []byte                 `protobuf:"bytes,2,opt,name=config_json,json=configJson,proto3" json:"config_json,omitempty"`
+	Target        RetrievalDeleteTarget  `protobuf:"varint,3,opt,name=target,proto3,enum=weknora.plugin.v1.RetrievalDeleteTarget" json:"target,omitempty"`
+	Ids           []string               `protobuf:"bytes,4,rep,name=ids,proto3" json:"ids,omitempty"`
+	Dimension     int32                  `protobuf:"varint,5,opt,name=dimension,proto3" json:"dimension,omitempty"`
+	KnowledgeType string                 `protobuf:"bytes,6,opt,name=knowledge_type,json=knowledgeType,proto3" json:"knowledge_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetrievalDeleteRequest) Reset() {
+	*x = RetrievalDeleteRequest{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalDeleteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalDeleteRequest) ProtoMessage() {}
+
+func (x *RetrievalDeleteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalDeleteRequest.ProtoReflect.Descriptor instead.
+func (*RetrievalDeleteRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *RetrievalDeleteRequest) GetContext() *InvocationContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RetrievalDeleteRequest) GetConfigJson() []byte {
+	if x != nil {
+		return x.ConfigJson
+	}
+	return nil
+}
+
+func (x *RetrievalDeleteRequest) GetTarget() RetrievalDeleteTarget {
+	if x != nil {
+		return x.Target
+	}
+	return RetrievalDeleteTarget_RETRIEVAL_DELETE_TARGET_UNSPECIFIED
+}
+
+func (x *RetrievalDeleteRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+func (x *RetrievalDeleteRequest) GetDimension() int32 {
+	if x != nil {
+		return x.Dimension
+	}
+	return 0
+}
+
+func (x *RetrievalDeleteRequest) GetKnowledgeType() string {
+	if x != nil {
+		return x.KnowledgeType
+	}
+	return ""
+}
+
+type RetrievalCopyRequest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Context               *InvocationContext     `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	ConfigJson            []byte                 `protobuf:"bytes,2,opt,name=config_json,json=configJson,proto3" json:"config_json,omitempty"`
+	SourceKnowledgeBaseId string                 `protobuf:"bytes,3,opt,name=source_knowledge_base_id,json=sourceKnowledgeBaseId,proto3" json:"source_knowledge_base_id,omitempty"`
+	KnowledgeBaseIdMap    map[string]string      `protobuf:"bytes,4,rep,name=knowledge_base_id_map,json=knowledgeBaseIdMap,proto3" json:"knowledge_base_id_map,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ChunkIdMap            map[string]string      `protobuf:"bytes,5,rep,name=chunk_id_map,json=chunkIdMap,proto3" json:"chunk_id_map,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	TargetKnowledgeBaseId string                 `protobuf:"bytes,6,opt,name=target_knowledge_base_id,json=targetKnowledgeBaseId,proto3" json:"target_knowledge_base_id,omitempty"`
+	Dimension             int32                  `protobuf:"varint,7,opt,name=dimension,proto3" json:"dimension,omitempty"`
+	KnowledgeType         string                 `protobuf:"bytes,8,opt,name=knowledge_type,json=knowledgeType,proto3" json:"knowledge_type,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *RetrievalCopyRequest) Reset() {
+	*x = RetrievalCopyRequest{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalCopyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalCopyRequest) ProtoMessage() {}
+
+func (x *RetrievalCopyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalCopyRequest.ProtoReflect.Descriptor instead.
+func (*RetrievalCopyRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *RetrievalCopyRequest) GetContext() *InvocationContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RetrievalCopyRequest) GetConfigJson() []byte {
+	if x != nil {
+		return x.ConfigJson
+	}
+	return nil
+}
+
+func (x *RetrievalCopyRequest) GetSourceKnowledgeBaseId() string {
+	if x != nil {
+		return x.SourceKnowledgeBaseId
+	}
+	return ""
+}
+
+func (x *RetrievalCopyRequest) GetKnowledgeBaseIdMap() map[string]string {
+	if x != nil {
+		return x.KnowledgeBaseIdMap
+	}
+	return nil
+}
+
+func (x *RetrievalCopyRequest) GetChunkIdMap() map[string]string {
+	if x != nil {
+		return x.ChunkIdMap
+	}
+	return nil
+}
+
+func (x *RetrievalCopyRequest) GetTargetKnowledgeBaseId() string {
+	if x != nil {
+		return x.TargetKnowledgeBaseId
+	}
+	return ""
+}
+
+func (x *RetrievalCopyRequest) GetDimension() int32 {
+	if x != nil {
+		return x.Dimension
+	}
+	return 0
+}
+
+func (x *RetrievalCopyRequest) GetKnowledgeType() string {
+	if x != nil {
+		return x.KnowledgeType
+	}
+	return ""
+}
+
+type RetrievalUpdateChunksRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *InvocationContext     `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	ConfigJson    []byte                 `protobuf:"bytes,2,opt,name=config_json,json=configJson,proto3" json:"config_json,omitempty"`
+	EnabledStatus map[string]bool        `protobuf:"bytes,3,rep,name=enabled_status,json=enabledStatus,proto3" json:"enabled_status,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	TagIds        map[string]string      `protobuf:"bytes,4,rep,name=tag_ids,json=tagIds,proto3" json:"tag_ids,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetrievalUpdateChunksRequest) Reset() {
+	*x = RetrievalUpdateChunksRequest{}
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalUpdateChunksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalUpdateChunksRequest) ProtoMessage() {}
+
+func (x *RetrievalUpdateChunksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RetrievalUpdateChunksRequest.ProtoReflect.Descriptor instead.
+func (*RetrievalUpdateChunksRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *RetrievalUpdateChunksRequest) GetContext() *InvocationContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RetrievalUpdateChunksRequest) GetConfigJson() []byte {
+	if x != nil {
+		return x.ConfigJson
+	}
+	return nil
+}
+
+func (x *RetrievalUpdateChunksRequest) GetEnabledStatus() map[string]bool {
+	if x != nil {
+		return x.EnabledStatus
+	}
+	return nil
+}
+
+func (x *RetrievalUpdateChunksRequest) GetTagIds() map[string]string {
+	if x != nil {
+		return x.TagIds
+	}
+	return nil
+}
+
 type InstallPluginRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Manifest      *PluginManifest        `protobuf:"bytes,1,opt,name=manifest,proto3" json:"manifest,omitempty"`
@@ -3451,7 +4482,7 @@ type InstallPluginRequest struct {
 
 func (x *InstallPluginRequest) Reset() {
 	*x = InstallPluginRequest{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[47]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3463,7 +4494,7 @@ func (x *InstallPluginRequest) String() string {
 func (*InstallPluginRequest) ProtoMessage() {}
 
 func (x *InstallPluginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[47]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3476,7 +4507,7 @@ func (x *InstallPluginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallPluginRequest.ProtoReflect.Descriptor instead.
 func (*InstallPluginRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{47}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *InstallPluginRequest) GetManifest() *PluginManifest {
@@ -3511,7 +4542,7 @@ type UpgradePluginRequest struct {
 
 func (x *UpgradePluginRequest) Reset() {
 	*x = UpgradePluginRequest{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[48]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3523,7 +4554,7 @@ func (x *UpgradePluginRequest) String() string {
 func (*UpgradePluginRequest) ProtoMessage() {}
 
 func (x *UpgradePluginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[48]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3536,7 +4567,7 @@ func (x *UpgradePluginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpgradePluginRequest.ProtoReflect.Descriptor instead.
 func (*UpgradePluginRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{48}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *UpgradePluginRequest) GetManifest() *PluginManifest {
@@ -3569,7 +4600,7 @@ type PluginTargetRequest struct {
 
 func (x *PluginTargetRequest) Reset() {
 	*x = PluginTargetRequest{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[49]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3581,7 +4612,7 @@ func (x *PluginTargetRequest) String() string {
 func (*PluginTargetRequest) ProtoMessage() {}
 
 func (x *PluginTargetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[49]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3594,7 +4625,7 @@ func (x *PluginTargetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginTargetRequest.ProtoReflect.Descriptor instead.
 func (*PluginTargetRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{49}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *PluginTargetRequest) GetPluginId() string {
@@ -3619,7 +4650,7 @@ type PluginRuntimeStatus struct {
 
 func (x *PluginRuntimeStatus) Reset() {
 	*x = PluginRuntimeStatus{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[50]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3631,7 +4662,7 @@ func (x *PluginRuntimeStatus) String() string {
 func (*PluginRuntimeStatus) ProtoMessage() {}
 
 func (x *PluginRuntimeStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[50]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3644,7 +4675,7 @@ func (x *PluginRuntimeStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginRuntimeStatus.ProtoReflect.Descriptor instead.
 func (*PluginRuntimeStatus) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{50}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *PluginRuntimeStatus) GetPluginId() string {
@@ -3705,7 +4736,7 @@ type ListPluginStatusesResponse struct {
 
 func (x *ListPluginStatusesResponse) Reset() {
 	*x = ListPluginStatusesResponse{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[51]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3717,7 +4748,7 @@ func (x *ListPluginStatusesResponse) String() string {
 func (*ListPluginStatusesResponse) ProtoMessage() {}
 
 func (x *ListPluginStatusesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[51]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3730,7 +4761,7 @@ func (x *ListPluginStatusesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPluginStatusesResponse.ProtoReflect.Descriptor instead.
 func (*ListPluginStatusesResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{51}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *ListPluginStatusesResponse) GetStatuses() []*PluginRuntimeStatus {
@@ -3749,7 +4780,7 @@ type WatchRuntimeEventsRequest struct {
 
 func (x *WatchRuntimeEventsRequest) Reset() {
 	*x = WatchRuntimeEventsRequest{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[52]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3761,7 +4792,7 @@ func (x *WatchRuntimeEventsRequest) String() string {
 func (*WatchRuntimeEventsRequest) ProtoMessage() {}
 
 func (x *WatchRuntimeEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[52]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3774,7 +4805,7 @@ func (x *WatchRuntimeEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchRuntimeEventsRequest.ProtoReflect.Descriptor instead.
 func (*WatchRuntimeEventsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{52}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *WatchRuntimeEventsRequest) GetAfterSequence() uint64 {
@@ -3795,7 +4826,7 @@ type ListRuntimeEventsRequest struct {
 
 func (x *ListRuntimeEventsRequest) Reset() {
 	*x = ListRuntimeEventsRequest{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[53]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3807,7 +4838,7 @@ func (x *ListRuntimeEventsRequest) String() string {
 func (*ListRuntimeEventsRequest) ProtoMessage() {}
 
 func (x *ListRuntimeEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[53]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3820,7 +4851,7 @@ func (x *ListRuntimeEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRuntimeEventsRequest.ProtoReflect.Descriptor instead.
 func (*ListRuntimeEventsRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{53}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *ListRuntimeEventsRequest) GetPluginId() string {
@@ -3853,7 +4884,7 @@ type ListRuntimeEventsResponse struct {
 
 func (x *ListRuntimeEventsResponse) Reset() {
 	*x = ListRuntimeEventsResponse{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[54]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3865,7 +4896,7 @@ func (x *ListRuntimeEventsResponse) String() string {
 func (*ListRuntimeEventsResponse) ProtoMessage() {}
 
 func (x *ListRuntimeEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[54]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3878,7 +4909,7 @@ func (x *ListRuntimeEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRuntimeEventsResponse.ProtoReflect.Descriptor instead.
 func (*ListRuntimeEventsResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{54}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *ListRuntimeEventsResponse) GetEvents() []*RuntimeEvent {
@@ -3902,7 +4933,7 @@ type RuntimeEvent struct {
 
 func (x *RuntimeEvent) Reset() {
 	*x = RuntimeEvent{}
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[55]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3914,7 +4945,7 @@ func (x *RuntimeEvent) String() string {
 func (*RuntimeEvent) ProtoMessage() {}
 
 func (x *RuntimeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[55]
+	mi := &file_api_proto_plugin_v1_plugin_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3927,7 +4958,7 @@ func (x *RuntimeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeEvent.ProtoReflect.Descriptor instead.
 func (*RuntimeEvent) Descriptor() ([]byte, []int) {
-	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{55}
+	return file_api_proto_plugin_v1_plugin_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *RuntimeEvent) GetSequence() uint64 {
@@ -3976,7 +5007,7 @@ var File_api_proto_plugin_v1_plugin_proto protoreflect.FileDescriptor
 
 const file_api_proto_plugin_v1_plugin_proto_rawDesc = "" +
 	"\n" +
-	" api/proto/plugin/v1/plugin.proto\x12\x11weknora.plugin.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd8\x05\n" +
+	" api/proto/plugin/v1/plugin.proto\x12\x11weknora.plugin.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8c\x06\n" +
 	"\x0ePluginManifest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -3994,7 +5025,8 @@ const file_api_proto_plugin_v1_plugin_proto_rawDesc = "" +
 	"\x0econnector_type\x18\r \x01(\tR\rconnectorType\x12\x12\n" +
 	"\x04icon\x18\x0e \x01(\tR\x04icon\x12G\n" +
 	"\fsupply_chain\x18\x0f \x01(\v2$.weknora.plugin.v1.PluginSupplyChainR\vsupplyChain\x12E\n" +
-	"\tresources\x18\x10 \x01(\v2'.weknora.plugin.v1.PluginResourceLimitsR\tresources\"\x9f\x01\n" +
+	"\tresources\x18\x10 \x01(\v2'.weknora.plugin.v1.PluginResourceLimitsR\tresources\x122\n" +
+	"\x15retriever_engine_type\x18\x11 \x01(\tR\x13retrieverEngineType\"\x9f\x01\n" +
 	"\x11PluginSupplyChain\x12\x1c\n" +
 	"\tpublisher\x18\x01 \x01(\tR\tpublisher\x12+\n" +
 	"\x11source_repository\x18\x02 \x01(\tR\x10sourceRepository\x12!\n" +
@@ -4257,7 +5289,110 @@ const file_api_proto_plugin_v1_plugin_proto_rawDesc = "" +
 	"\n" +
 	"ModelUsage\x12!\n" +
 	"\finput_tokens\x18\x01 \x01(\x04R\vinputTokens\x12#\n" +
-	"\routput_tokens\x18\x02 \x01(\x04R\foutputTokens\"\xa9\x01\n" +
+	"\routput_tokens\x18\x02 \x01(\x04R\foutputTokens\"\x8c\x03\n" +
+	"\x16RetrievalIndexDocument\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\x12\x1b\n" +
+	"\tsource_id\x18\x03 \x01(\tR\bsourceId\x12\x1f\n" +
+	"\vsource_type\x18\x04 \x01(\x05R\n" +
+	"sourceType\x12\x19\n" +
+	"\bchunk_id\x18\x05 \x01(\tR\achunkId\x12!\n" +
+	"\fknowledge_id\x18\x06 \x01(\tR\vknowledgeId\x12*\n" +
+	"\x11knowledge_base_id\x18\a \x01(\tR\x0fknowledgeBaseId\x12%\n" +
+	"\x0eknowledge_type\x18\b \x01(\tR\rknowledgeType\x12\x15\n" +
+	"\x06tag_id\x18\t \x01(\tR\x05tagId\x12\x1d\n" +
+	"\n" +
+	"is_enabled\x18\n" +
+	" \x01(\bR\tisEnabled\x12%\n" +
+	"\x0eis_recommended\x18\v \x01(\bR\risRecommended\x12\x1c\n" +
+	"\tembedding\x18\f \x03(\x02R\tembedding\"\xc2\x01\n" +
+	"\x16RetrievalUpsertRequest\x12>\n" +
+	"\acontext\x18\x01 \x01(\v2$.weknora.plugin.v1.InvocationContextR\acontext\x12\x1f\n" +
+	"\vconfig_json\x18\x02 \x01(\fR\n" +
+	"configJson\x12G\n" +
+	"\tdocuments\x18\x03 \x03(\v2).weknora.plugin.v1.RetrievalIndexDocumentR\tdocuments\"\xd2\x04\n" +
+	"\x10RetrievalRequest\x12>\n" +
+	"\acontext\x18\x01 \x01(\v2$.weknora.plugin.v1.InvocationContextR\acontext\x12\x1f\n" +
+	"\vconfig_json\x18\x02 \x01(\fR\n" +
+	"configJson\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1c\n" +
+	"\tembedding\x18\x04 \x03(\x02R\tembedding\x12,\n" +
+	"\x12knowledge_base_ids\x18\x05 \x03(\tR\x10knowledgeBaseIds\x12#\n" +
+	"\rknowledge_ids\x18\x06 \x03(\tR\fknowledgeIds\x12\x17\n" +
+	"\atag_ids\x18\a \x03(\tR\x06tagIds\x122\n" +
+	"\x15exclude_knowledge_ids\x18\b \x03(\tR\x13excludeKnowledgeIds\x12*\n" +
+	"\x11exclude_chunk_ids\x18\t \x03(\tR\x0fexcludeChunkIds\x12\x13\n" +
+	"\x05top_k\x18\n" +
+	" \x01(\rR\x04topK\x12\x1c\n" +
+	"\tthreshold\x18\v \x01(\x01R\tthreshold\x12%\n" +
+	"\x0eknowledge_type\x18\f \x01(\tR\rknowledgeType\x124\n" +
+	"\x16additional_params_json\x18\r \x01(\fR\x14additionalParamsJson\x12M\n" +
+	"\x0eretriever_type\x18\x0e \x01(\x0e2&.weknora.plugin.v1.PluginRetrieverTypeR\rretrieverType\"T\n" +
+	"\x11RetrievalResponse\x12?\n" +
+	"\aresults\x18\x01 \x03(\v2%.weknora.plugin.v1.RetrievalResultSetR\aresults\"\x98\x01\n" +
+	"\x12RetrievalResultSet\x12M\n" +
+	"\x0eretriever_type\x18\x01 \x01(\x0e2&.weknora.plugin.v1.PluginRetrieverTypeR\rretrieverType\x123\n" +
+	"\x04hits\x18\x02 \x03(\v2\x1f.weknora.plugin.v1.RetrievalHitR\x04hits\"\xcb\x02\n" +
+	"\fRetrievalHit\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\x12\x1b\n" +
+	"\tsource_id\x18\x03 \x01(\tR\bsourceId\x12\x1f\n" +
+	"\vsource_type\x18\x04 \x01(\x05R\n" +
+	"sourceType\x12\x19\n" +
+	"\bchunk_id\x18\x05 \x01(\tR\achunkId\x12!\n" +
+	"\fknowledge_id\x18\x06 \x01(\tR\vknowledgeId\x12*\n" +
+	"\x11knowledge_base_id\x18\a \x01(\tR\x0fknowledgeBaseId\x12\x15\n" +
+	"\x06tag_id\x18\b \x01(\tR\x05tagId\x12\x14\n" +
+	"\x05score\x18\t \x01(\x01R\x05score\x12\x1d\n" +
+	"\n" +
+	"match_type\x18\n" +
+	" \x01(\x05R\tmatchType\x12\x1d\n" +
+	"\n" +
+	"is_enabled\x18\v \x01(\bR\tisEnabled\"\xcb\x01\n" +
+	"\x1fRetrievalEstimateStorageRequest\x12>\n" +
+	"\acontext\x18\x01 \x01(\v2$.weknora.plugin.v1.InvocationContextR\acontext\x12\x1f\n" +
+	"\vconfig_json\x18\x02 \x01(\fR\n" +
+	"configJson\x12G\n" +
+	"\tdocuments\x18\x03 \x03(\v2).weknora.plugin.v1.RetrievalIndexDocumentR\tdocuments\"8\n" +
+	" RetrievalEstimateStorageResponse\x12\x14\n" +
+	"\x05bytes\x18\x01 \x01(\x03R\x05bytes\"\x92\x02\n" +
+	"\x16RetrievalDeleteRequest\x12>\n" +
+	"\acontext\x18\x01 \x01(\v2$.weknora.plugin.v1.InvocationContextR\acontext\x12\x1f\n" +
+	"\vconfig_json\x18\x02 \x01(\fR\n" +
+	"configJson\x12@\n" +
+	"\x06target\x18\x03 \x01(\x0e2(.weknora.plugin.v1.RetrievalDeleteTargetR\x06target\x12\x10\n" +
+	"\x03ids\x18\x04 \x03(\tR\x03ids\x12\x1c\n" +
+	"\tdimension\x18\x05 \x01(\x05R\tdimension\x12%\n" +
+	"\x0eknowledge_type\x18\x06 \x01(\tR\rknowledgeType\"\x83\x05\n" +
+	"\x14RetrievalCopyRequest\x12>\n" +
+	"\acontext\x18\x01 \x01(\v2$.weknora.plugin.v1.InvocationContextR\acontext\x12\x1f\n" +
+	"\vconfig_json\x18\x02 \x01(\fR\n" +
+	"configJson\x127\n" +
+	"\x18source_knowledge_base_id\x18\x03 \x01(\tR\x15sourceKnowledgeBaseId\x12r\n" +
+	"\x15knowledge_base_id_map\x18\x04 \x03(\v2?.weknora.plugin.v1.RetrievalCopyRequest.KnowledgeBaseIdMapEntryR\x12knowledgeBaseIdMap\x12Y\n" +
+	"\fchunk_id_map\x18\x05 \x03(\v27.weknora.plugin.v1.RetrievalCopyRequest.ChunkIdMapEntryR\n" +
+	"chunkIdMap\x127\n" +
+	"\x18target_knowledge_base_id\x18\x06 \x01(\tR\x15targetKnowledgeBaseId\x12\x1c\n" +
+	"\tdimension\x18\a \x01(\x05R\tdimension\x12%\n" +
+	"\x0eknowledge_type\x18\b \x01(\tR\rknowledgeType\x1aE\n" +
+	"\x17KnowledgeBaseIdMapEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
+	"\x0fChunkIdMapEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbd\x03\n" +
+	"\x1cRetrievalUpdateChunksRequest\x12>\n" +
+	"\acontext\x18\x01 \x01(\v2$.weknora.plugin.v1.InvocationContextR\acontext\x12\x1f\n" +
+	"\vconfig_json\x18\x02 \x01(\fR\n" +
+	"configJson\x12i\n" +
+	"\x0eenabled_status\x18\x03 \x03(\v2B.weknora.plugin.v1.RetrievalUpdateChunksRequest.EnabledStatusEntryR\renabledStatus\x12T\n" +
+	"\atag_ids\x18\x04 \x03(\v2;.weknora.plugin.v1.RetrievalUpdateChunksRequest.TagIdsEntryR\x06tagIds\x1a@\n" +
+	"\x12EnabledStatusEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\x1a9\n" +
+	"\vTagIdsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa9\x01\n" +
 	"\x14InstallPluginRequest\x12=\n" +
 	"\bmanifest\x18\x01 \x01(\v2!.weknora.plugin.v1.PluginManifestR\bmanifest\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12<\n" +
@@ -4297,26 +5432,37 @@ const file_api_proto_plugin_v1_plugin_proto_rawDesc = "" +
 	"\adetails\x18\x06 \x03(\v2,.weknora.plugin.v1.RuntimeEvent.DetailsEntryR\adetails\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01*\xa3\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01*\xc5\x01\n" +
 	"\n" +
 	"PluginType\x12\x1b\n" +
 	"\x17PLUGIN_TYPE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17PLUGIN_TYPE_DATA_SOURCE\x10\x01\x12\x1f\n" +
 	"\x1bPLUGIN_TYPE_DOCUMENT_PARSER\x10\x02\x12\x1a\n" +
 	"\x16PLUGIN_TYPE_WEB_SEARCH\x10\x03\x12\x1e\n" +
-	"\x1aPLUGIN_TYPE_MODEL_PROVIDER\x10\x04*\xa8\x01\n" +
+	"\x1aPLUGIN_TYPE_MODEL_PROVIDER\x10\x04\x12 \n" +
+	"\x1cPLUGIN_TYPE_RETRIEVAL_ENGINE\x10\x05*\xc4\x01\n" +
 	"\n" +
 	"DataAccess\x12\x1b\n" +
 	"\x17DATA_ACCESS_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cDATA_ACCESS_DOCUMENT_CONTENT\x10\x01\x12!\n" +
 	"\x1dDATA_ACCESS_DOCUMENT_METADATA\x10\x02\x12\x1a\n" +
 	"\x16DATA_ACCESS_QUERY_TEXT\x10\x03\x12\x1c\n" +
-	"\x18DATA_ACCESS_CONVERSATION\x10\x04*\x8b\x01\n" +
+	"\x18DATA_ACCESS_CONVERSATION\x10\x04\x12\x1a\n" +
+	"\x16DATA_ACCESS_EMBEDDINGS\x10\x05*\x8b\x01\n" +
 	"\x0fModelCapability\x12 \n" +
 	"\x1cMODEL_CAPABILITY_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15MODEL_CAPABILITY_CHAT\x10\x01\x12\x1e\n" +
 	"\x1aMODEL_CAPABILITY_EMBEDDING\x10\x02\x12\x1b\n" +
-	"\x17MODEL_CAPABILITY_RERANK\x10\x03*\xd3\x01\n" +
+	"\x17MODEL_CAPABILITY_RERANK\x10\x03*\x82\x01\n" +
+	"\x13PluginRetrieverType\x12%\n" +
+	"!PLUGIN_RETRIEVER_TYPE_UNSPECIFIED\x10\x00\x12\"\n" +
+	"\x1ePLUGIN_RETRIEVER_TYPE_KEYWORDS\x10\x01\x12 \n" +
+	"\x1cPLUGIN_RETRIEVER_TYPE_VECTOR\x10\x02*\xae\x01\n" +
+	"\x15RetrievalDeleteTarget\x12'\n" +
+	"#RETRIEVAL_DELETE_TARGET_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dRETRIEVAL_DELETE_TARGET_CHUNK\x10\x01\x12\"\n" +
+	"\x1eRETRIEVAL_DELETE_TARGET_SOURCE\x10\x02\x12%\n" +
+	"!RETRIEVAL_DELETE_TARGET_KNOWLEDGE\x10\x03*\xd3\x01\n" +
 	"\fRuntimeState\x12\x1d\n" +
 	"\x19RUNTIME_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18RUNTIME_STATE_INSTALLING\x10\x01\x12\x19\n" +
@@ -4342,7 +5488,14 @@ const file_api_proto_plugin_v1_plugin_proto_rawDesc = "" +
 	"ListModels\x12$.weknora.plugin.v1.ListModelsRequest\x1a%.weknora.plugin.v1.ListModelsResponse\x12F\n" +
 	"\x04Chat\x12\x1e.weknora.plugin.v1.ChatRequest\x1a\x1c.weknora.plugin.v1.ChatEvent0\x01\x12J\n" +
 	"\x05Embed\x12\x1f.weknora.plugin.v1.EmbedRequest\x1a .weknora.plugin.v1.EmbedResponse\x12M\n" +
-	"\x06Rerank\x12 .weknora.plugin.v1.RerankRequest\x1a!.weknora.plugin.v1.RerankResponse2\xc2\x06\n" +
+	"\x06Rerank\x12 .weknora.plugin.v1.RerankRequest\x1a!.weknora.plugin.v1.RerankResponse2\xa6\x04\n" +
+	"\x15RetrievalEnginePlugin\x12K\n" +
+	"\x06Upsert\x12).weknora.plugin.v1.RetrievalUpsertRequest\x1a\x16.google.protobuf.Empty\x12U\n" +
+	"\bRetrieve\x12#.weknora.plugin.v1.RetrievalRequest\x1a$.weknora.plugin.v1.RetrievalResponse\x12z\n" +
+	"\x0fEstimateStorage\x122.weknora.plugin.v1.RetrievalEstimateStorageRequest\x1a3.weknora.plugin.v1.RetrievalEstimateStorageResponse\x12K\n" +
+	"\x06Delete\x12).weknora.plugin.v1.RetrievalDeleteRequest\x1a\x16.google.protobuf.Empty\x12G\n" +
+	"\x04Copy\x12'.weknora.plugin.v1.RetrievalCopyRequest\x1a\x16.google.protobuf.Empty\x12W\n" +
+	"\fUpdateChunks\x12/.weknora.plugin.v1.RetrievalUpdateChunksRequest\x1a\x16.google.protobuf.Empty2\xc2\x06\n" +
 	"\rPluginRuntime\x12Z\n" +
 	"\aInstall\x12'.weknora.plugin.v1.InstallPluginRequest\x1a&.weknora.plugin.v1.PluginRuntimeStatus\x12Z\n" +
 	"\aUpgrade\x12'.weknora.plugin.v1.UpgradePluginRequest\x1a&.weknora.plugin.v1.PluginRuntimeStatus\x12W\n" +
@@ -4367,193 +5520,239 @@ func file_api_proto_plugin_v1_plugin_proto_rawDescGZIP() []byte {
 	return file_api_proto_plugin_v1_plugin_proto_rawDescData
 }
 
-var file_api_proto_plugin_v1_plugin_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_api_proto_plugin_v1_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 65)
+var file_api_proto_plugin_v1_plugin_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_api_proto_plugin_v1_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 80)
 var file_api_proto_plugin_v1_plugin_proto_goTypes = []any{
 	(PluginType)(0),                          // 0: weknora.plugin.v1.PluginType
 	(DataAccess)(0),                          // 1: weknora.plugin.v1.DataAccess
 	(ModelCapability)(0),                     // 2: weknora.plugin.v1.ModelCapability
-	(RuntimeState)(0),                        // 3: weknora.plugin.v1.RuntimeState
-	(HealthCheckResponse_Status)(0),          // 4: weknora.plugin.v1.HealthCheckResponse.Status
-	(*PluginManifest)(nil),                   // 5: weknora.plugin.v1.PluginManifest
-	(*PluginSupplyChain)(nil),                // 6: weknora.plugin.v1.PluginSupplyChain
-	(*PluginResourceLimits)(nil),             // 7: weknora.plugin.v1.PluginResourceLimits
-	(*ConfigSchema)(nil),                     // 8: weknora.plugin.v1.ConfigSchema
-	(*PluginPermissions)(nil),                // 9: weknora.plugin.v1.PluginPermissions
-	(*InvocationContext)(nil),                // 10: weknora.plugin.v1.InvocationContext
-	(*HandshakeRequest)(nil),                 // 11: weknora.plugin.v1.HandshakeRequest
-	(*HandshakeResponse)(nil),                // 12: weknora.plugin.v1.HandshakeResponse
-	(*HealthCheckRequest)(nil),               // 13: weknora.plugin.v1.HealthCheckRequest
-	(*HealthCheckResponse)(nil),              // 14: weknora.plugin.v1.HealthCheckResponse
-	(*ValidateConfigRequest)(nil),            // 15: weknora.plugin.v1.ValidateConfigRequest
-	(*ValidateConfigResponse)(nil),           // 16: weknora.plugin.v1.ValidateConfigResponse
-	(*FieldViolation)(nil),                   // 17: weknora.plugin.v1.FieldViolation
-	(*ListResourcesRequest)(nil),             // 18: weknora.plugin.v1.ListResourcesRequest
-	(*ListResourcesResponse)(nil),            // 19: weknora.plugin.v1.ListResourcesResponse
-	(*ResolveResourceAncestorsRequest)(nil),  // 20: weknora.plugin.v1.ResolveResourceAncestorsRequest
-	(*ResolveResourceAncestorsResponse)(nil), // 21: weknora.plugin.v1.ResolveResourceAncestorsResponse
-	(*Resource)(nil),                         // 22: weknora.plugin.v1.Resource
-	(*DataSourceSyncRequest)(nil),            // 23: weknora.plugin.v1.DataSourceSyncRequest
-	(*DataSourceSyncEvent)(nil),              // 24: weknora.plugin.v1.DataSourceSyncEvent
-	(*DocumentBegin)(nil),                    // 25: weknora.plugin.v1.DocumentBegin
-	(*DocumentChunk)(nil),                    // 26: weknora.plugin.v1.DocumentChunk
-	(*DocumentEnd)(nil),                      // 27: weknora.plugin.v1.DocumentEnd
-	(*DeleteDocument)(nil),                   // 28: weknora.plugin.v1.DeleteDocument
-	(*CursorCheckpoint)(nil),                 // 29: weknora.plugin.v1.CursorCheckpoint
-	(*SyncWarning)(nil),                      // 30: weknora.plugin.v1.SyncWarning
-	(*ParseRequest)(nil),                     // 31: weknora.plugin.v1.ParseRequest
-	(*ParseBegin)(nil),                       // 32: weknora.plugin.v1.ParseBegin
-	(*ParseEvent)(nil),                       // 33: weknora.plugin.v1.ParseEvent
-	(*ParseMetadata)(nil),                    // 34: weknora.plugin.v1.ParseMetadata
-	(*ParsedAttachment)(nil),                 // 35: weknora.plugin.v1.ParsedAttachment
-	(*WebSearchRequest)(nil),                 // 36: weknora.plugin.v1.WebSearchRequest
-	(*WebSearchResponse)(nil),                // 37: weknora.plugin.v1.WebSearchResponse
-	(*WebSearchResult)(nil),                  // 38: weknora.plugin.v1.WebSearchResult
-	(*ListModelsRequest)(nil),                // 39: weknora.plugin.v1.ListModelsRequest
-	(*ListModelsResponse)(nil),               // 40: weknora.plugin.v1.ListModelsResponse
-	(*PluginModel)(nil),                      // 41: weknora.plugin.v1.PluginModel
-	(*ChatRequest)(nil),                      // 42: weknora.plugin.v1.ChatRequest
-	(*ChatMessage)(nil),                      // 43: weknora.plugin.v1.ChatMessage
-	(*ChatEvent)(nil),                        // 44: weknora.plugin.v1.ChatEvent
-	(*EmbedRequest)(nil),                     // 45: weknora.plugin.v1.EmbedRequest
-	(*EmbedResponse)(nil),                    // 46: weknora.plugin.v1.EmbedResponse
-	(*Embedding)(nil),                        // 47: weknora.plugin.v1.Embedding
-	(*RerankRequest)(nil),                    // 48: weknora.plugin.v1.RerankRequest
-	(*RerankResponse)(nil),                   // 49: weknora.plugin.v1.RerankResponse
-	(*RerankResult)(nil),                     // 50: weknora.plugin.v1.RerankResult
-	(*ModelUsage)(nil),                       // 51: weknora.plugin.v1.ModelUsage
-	(*InstallPluginRequest)(nil),             // 52: weknora.plugin.v1.InstallPluginRequest
-	(*UpgradePluginRequest)(nil),             // 53: weknora.plugin.v1.UpgradePluginRequest
-	(*PluginTargetRequest)(nil),              // 54: weknora.plugin.v1.PluginTargetRequest
-	(*PluginRuntimeStatus)(nil),              // 55: weknora.plugin.v1.PluginRuntimeStatus
-	(*ListPluginStatusesResponse)(nil),       // 56: weknora.plugin.v1.ListPluginStatusesResponse
-	(*WatchRuntimeEventsRequest)(nil),        // 57: weknora.plugin.v1.WatchRuntimeEventsRequest
-	(*ListRuntimeEventsRequest)(nil),         // 58: weknora.plugin.v1.ListRuntimeEventsRequest
-	(*ListRuntimeEventsResponse)(nil),        // 59: weknora.plugin.v1.ListRuntimeEventsResponse
-	(*RuntimeEvent)(nil),                     // 60: weknora.plugin.v1.RuntimeEvent
-	nil,                                      // 61: weknora.plugin.v1.HealthCheckResponse.DetailsEntry
-	nil,                                      // 62: weknora.plugin.v1.Resource.MetadataEntry
-	nil,                                      // 63: weknora.plugin.v1.DocumentBegin.MetadataEntry
-	nil,                                      // 64: weknora.plugin.v1.DeleteDocument.MetadataEntry
-	nil,                                      // 65: weknora.plugin.v1.ParseMetadata.ValuesEntry
-	nil,                                      // 66: weknora.plugin.v1.WebSearchResult.MetadataEntry
-	nil,                                      // 67: weknora.plugin.v1.PluginModel.MetadataEntry
-	nil,                                      // 68: weknora.plugin.v1.ChatRequest.OptionsEntry
-	nil,                                      // 69: weknora.plugin.v1.RuntimeEvent.DetailsEntry
-	(*durationpb.Duration)(nil),              // 70: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),            // 71: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                    // 72: google.protobuf.Empty
+	(PluginRetrieverType)(0),                 // 3: weknora.plugin.v1.PluginRetrieverType
+	(RetrievalDeleteTarget)(0),               // 4: weknora.plugin.v1.RetrievalDeleteTarget
+	(RuntimeState)(0),                        // 5: weknora.plugin.v1.RuntimeState
+	(HealthCheckResponse_Status)(0),          // 6: weknora.plugin.v1.HealthCheckResponse.Status
+	(*PluginManifest)(nil),                   // 7: weknora.plugin.v1.PluginManifest
+	(*PluginSupplyChain)(nil),                // 8: weknora.plugin.v1.PluginSupplyChain
+	(*PluginResourceLimits)(nil),             // 9: weknora.plugin.v1.PluginResourceLimits
+	(*ConfigSchema)(nil),                     // 10: weknora.plugin.v1.ConfigSchema
+	(*PluginPermissions)(nil),                // 11: weknora.plugin.v1.PluginPermissions
+	(*InvocationContext)(nil),                // 12: weknora.plugin.v1.InvocationContext
+	(*HandshakeRequest)(nil),                 // 13: weknora.plugin.v1.HandshakeRequest
+	(*HandshakeResponse)(nil),                // 14: weknora.plugin.v1.HandshakeResponse
+	(*HealthCheckRequest)(nil),               // 15: weknora.plugin.v1.HealthCheckRequest
+	(*HealthCheckResponse)(nil),              // 16: weknora.plugin.v1.HealthCheckResponse
+	(*ValidateConfigRequest)(nil),            // 17: weknora.plugin.v1.ValidateConfigRequest
+	(*ValidateConfigResponse)(nil),           // 18: weknora.plugin.v1.ValidateConfigResponse
+	(*FieldViolation)(nil),                   // 19: weknora.plugin.v1.FieldViolation
+	(*ListResourcesRequest)(nil),             // 20: weknora.plugin.v1.ListResourcesRequest
+	(*ListResourcesResponse)(nil),            // 21: weknora.plugin.v1.ListResourcesResponse
+	(*ResolveResourceAncestorsRequest)(nil),  // 22: weknora.plugin.v1.ResolveResourceAncestorsRequest
+	(*ResolveResourceAncestorsResponse)(nil), // 23: weknora.plugin.v1.ResolveResourceAncestorsResponse
+	(*Resource)(nil),                         // 24: weknora.plugin.v1.Resource
+	(*DataSourceSyncRequest)(nil),            // 25: weknora.plugin.v1.DataSourceSyncRequest
+	(*DataSourceSyncEvent)(nil),              // 26: weknora.plugin.v1.DataSourceSyncEvent
+	(*DocumentBegin)(nil),                    // 27: weknora.plugin.v1.DocumentBegin
+	(*DocumentChunk)(nil),                    // 28: weknora.plugin.v1.DocumentChunk
+	(*DocumentEnd)(nil),                      // 29: weknora.plugin.v1.DocumentEnd
+	(*DeleteDocument)(nil),                   // 30: weknora.plugin.v1.DeleteDocument
+	(*CursorCheckpoint)(nil),                 // 31: weknora.plugin.v1.CursorCheckpoint
+	(*SyncWarning)(nil),                      // 32: weknora.plugin.v1.SyncWarning
+	(*ParseRequest)(nil),                     // 33: weknora.plugin.v1.ParseRequest
+	(*ParseBegin)(nil),                       // 34: weknora.plugin.v1.ParseBegin
+	(*ParseEvent)(nil),                       // 35: weknora.plugin.v1.ParseEvent
+	(*ParseMetadata)(nil),                    // 36: weknora.plugin.v1.ParseMetadata
+	(*ParsedAttachment)(nil),                 // 37: weknora.plugin.v1.ParsedAttachment
+	(*WebSearchRequest)(nil),                 // 38: weknora.plugin.v1.WebSearchRequest
+	(*WebSearchResponse)(nil),                // 39: weknora.plugin.v1.WebSearchResponse
+	(*WebSearchResult)(nil),                  // 40: weknora.plugin.v1.WebSearchResult
+	(*ListModelsRequest)(nil),                // 41: weknora.plugin.v1.ListModelsRequest
+	(*ListModelsResponse)(nil),               // 42: weknora.plugin.v1.ListModelsResponse
+	(*PluginModel)(nil),                      // 43: weknora.plugin.v1.PluginModel
+	(*ChatRequest)(nil),                      // 44: weknora.plugin.v1.ChatRequest
+	(*ChatMessage)(nil),                      // 45: weknora.plugin.v1.ChatMessage
+	(*ChatEvent)(nil),                        // 46: weknora.plugin.v1.ChatEvent
+	(*EmbedRequest)(nil),                     // 47: weknora.plugin.v1.EmbedRequest
+	(*EmbedResponse)(nil),                    // 48: weknora.plugin.v1.EmbedResponse
+	(*Embedding)(nil),                        // 49: weknora.plugin.v1.Embedding
+	(*RerankRequest)(nil),                    // 50: weknora.plugin.v1.RerankRequest
+	(*RerankResponse)(nil),                   // 51: weknora.plugin.v1.RerankResponse
+	(*RerankResult)(nil),                     // 52: weknora.plugin.v1.RerankResult
+	(*ModelUsage)(nil),                       // 53: weknora.plugin.v1.ModelUsage
+	(*RetrievalIndexDocument)(nil),           // 54: weknora.plugin.v1.RetrievalIndexDocument
+	(*RetrievalUpsertRequest)(nil),           // 55: weknora.plugin.v1.RetrievalUpsertRequest
+	(*RetrievalRequest)(nil),                 // 56: weknora.plugin.v1.RetrievalRequest
+	(*RetrievalResponse)(nil),                // 57: weknora.plugin.v1.RetrievalResponse
+	(*RetrievalResultSet)(nil),               // 58: weknora.plugin.v1.RetrievalResultSet
+	(*RetrievalHit)(nil),                     // 59: weknora.plugin.v1.RetrievalHit
+	(*RetrievalEstimateStorageRequest)(nil),  // 60: weknora.plugin.v1.RetrievalEstimateStorageRequest
+	(*RetrievalEstimateStorageResponse)(nil), // 61: weknora.plugin.v1.RetrievalEstimateStorageResponse
+	(*RetrievalDeleteRequest)(nil),           // 62: weknora.plugin.v1.RetrievalDeleteRequest
+	(*RetrievalCopyRequest)(nil),             // 63: weknora.plugin.v1.RetrievalCopyRequest
+	(*RetrievalUpdateChunksRequest)(nil),     // 64: weknora.plugin.v1.RetrievalUpdateChunksRequest
+	(*InstallPluginRequest)(nil),             // 65: weknora.plugin.v1.InstallPluginRequest
+	(*UpgradePluginRequest)(nil),             // 66: weknora.plugin.v1.UpgradePluginRequest
+	(*PluginTargetRequest)(nil),              // 67: weknora.plugin.v1.PluginTargetRequest
+	(*PluginRuntimeStatus)(nil),              // 68: weknora.plugin.v1.PluginRuntimeStatus
+	(*ListPluginStatusesResponse)(nil),       // 69: weknora.plugin.v1.ListPluginStatusesResponse
+	(*WatchRuntimeEventsRequest)(nil),        // 70: weknora.plugin.v1.WatchRuntimeEventsRequest
+	(*ListRuntimeEventsRequest)(nil),         // 71: weknora.plugin.v1.ListRuntimeEventsRequest
+	(*ListRuntimeEventsResponse)(nil),        // 72: weknora.plugin.v1.ListRuntimeEventsResponse
+	(*RuntimeEvent)(nil),                     // 73: weknora.plugin.v1.RuntimeEvent
+	nil,                                      // 74: weknora.plugin.v1.HealthCheckResponse.DetailsEntry
+	nil,                                      // 75: weknora.plugin.v1.Resource.MetadataEntry
+	nil,                                      // 76: weknora.plugin.v1.DocumentBegin.MetadataEntry
+	nil,                                      // 77: weknora.plugin.v1.DeleteDocument.MetadataEntry
+	nil,                                      // 78: weknora.plugin.v1.ParseMetadata.ValuesEntry
+	nil,                                      // 79: weknora.plugin.v1.WebSearchResult.MetadataEntry
+	nil,                                      // 80: weknora.plugin.v1.PluginModel.MetadataEntry
+	nil,                                      // 81: weknora.plugin.v1.ChatRequest.OptionsEntry
+	nil,                                      // 82: weknora.plugin.v1.RetrievalCopyRequest.KnowledgeBaseIdMapEntry
+	nil,                                      // 83: weknora.plugin.v1.RetrievalCopyRequest.ChunkIdMapEntry
+	nil,                                      // 84: weknora.plugin.v1.RetrievalUpdateChunksRequest.EnabledStatusEntry
+	nil,                                      // 85: weknora.plugin.v1.RetrievalUpdateChunksRequest.TagIdsEntry
+	nil,                                      // 86: weknora.plugin.v1.RuntimeEvent.DetailsEntry
+	(*durationpb.Duration)(nil),              // 87: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),            // 88: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                    // 89: google.protobuf.Empty
 }
 var file_api_proto_plugin_v1_plugin_proto_depIdxs = []int32{
-	0,  // 0: weknora.plugin.v1.PluginManifest.types:type_name -> weknora.plugin.v1.PluginType
-	8,  // 1: weknora.plugin.v1.PluginManifest.config:type_name -> weknora.plugin.v1.ConfigSchema
-	9,  // 2: weknora.plugin.v1.PluginManifest.permissions:type_name -> weknora.plugin.v1.PluginPermissions
-	70, // 3: weknora.plugin.v1.PluginManifest.default_timeout:type_name -> google.protobuf.Duration
-	6,  // 4: weknora.plugin.v1.PluginManifest.supply_chain:type_name -> weknora.plugin.v1.PluginSupplyChain
-	7,  // 5: weknora.plugin.v1.PluginManifest.resources:type_name -> weknora.plugin.v1.PluginResourceLimits
-	1,  // 6: weknora.plugin.v1.PluginPermissions.data_access:type_name -> weknora.plugin.v1.DataAccess
-	10, // 7: weknora.plugin.v1.HandshakeRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	5,  // 8: weknora.plugin.v1.HandshakeResponse.manifest:type_name -> weknora.plugin.v1.PluginManifest
-	10, // 9: weknora.plugin.v1.HealthCheckRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	4,  // 10: weknora.plugin.v1.HealthCheckResponse.status:type_name -> weknora.plugin.v1.HealthCheckResponse.Status
-	61, // 11: weknora.plugin.v1.HealthCheckResponse.details:type_name -> weknora.plugin.v1.HealthCheckResponse.DetailsEntry
-	10, // 12: weknora.plugin.v1.ValidateConfigRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	17, // 13: weknora.plugin.v1.ValidateConfigResponse.violations:type_name -> weknora.plugin.v1.FieldViolation
-	10, // 14: weknora.plugin.v1.ListResourcesRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	22, // 15: weknora.plugin.v1.ListResourcesResponse.resources:type_name -> weknora.plugin.v1.Resource
-	10, // 16: weknora.plugin.v1.ResolveResourceAncestorsRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	71, // 17: weknora.plugin.v1.Resource.modified_at:type_name -> google.protobuf.Timestamp
-	62, // 18: weknora.plugin.v1.Resource.metadata:type_name -> weknora.plugin.v1.Resource.MetadataEntry
-	10, // 19: weknora.plugin.v1.DataSourceSyncRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	25, // 20: weknora.plugin.v1.DataSourceSyncEvent.document_begin:type_name -> weknora.plugin.v1.DocumentBegin
-	26, // 21: weknora.plugin.v1.DataSourceSyncEvent.document_chunk:type_name -> weknora.plugin.v1.DocumentChunk
-	27, // 22: weknora.plugin.v1.DataSourceSyncEvent.document_end:type_name -> weknora.plugin.v1.DocumentEnd
-	28, // 23: weknora.plugin.v1.DataSourceSyncEvent.delete_document:type_name -> weknora.plugin.v1.DeleteDocument
-	29, // 24: weknora.plugin.v1.DataSourceSyncEvent.checkpoint:type_name -> weknora.plugin.v1.CursorCheckpoint
-	30, // 25: weknora.plugin.v1.DataSourceSyncEvent.warning:type_name -> weknora.plugin.v1.SyncWarning
-	71, // 26: weknora.plugin.v1.DocumentBegin.updated_at:type_name -> google.protobuf.Timestamp
-	63, // 27: weknora.plugin.v1.DocumentBegin.metadata:type_name -> weknora.plugin.v1.DocumentBegin.MetadataEntry
-	64, // 28: weknora.plugin.v1.DeleteDocument.metadata:type_name -> weknora.plugin.v1.DeleteDocument.MetadataEntry
-	10, // 29: weknora.plugin.v1.ParseRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	32, // 30: weknora.plugin.v1.ParseRequest.begin:type_name -> weknora.plugin.v1.ParseBegin
-	34, // 31: weknora.plugin.v1.ParseEvent.metadata:type_name -> weknora.plugin.v1.ParseMetadata
-	35, // 32: weknora.plugin.v1.ParseEvent.attachment:type_name -> weknora.plugin.v1.ParsedAttachment
-	65, // 33: weknora.plugin.v1.ParseMetadata.values:type_name -> weknora.plugin.v1.ParseMetadata.ValuesEntry
-	10, // 34: weknora.plugin.v1.WebSearchRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	38, // 35: weknora.plugin.v1.WebSearchResponse.results:type_name -> weknora.plugin.v1.WebSearchResult
-	71, // 36: weknora.plugin.v1.WebSearchResult.published_at:type_name -> google.protobuf.Timestamp
-	66, // 37: weknora.plugin.v1.WebSearchResult.metadata:type_name -> weknora.plugin.v1.WebSearchResult.MetadataEntry
-	10, // 38: weknora.plugin.v1.ListModelsRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	41, // 39: weknora.plugin.v1.ListModelsResponse.models:type_name -> weknora.plugin.v1.PluginModel
-	2,  // 40: weknora.plugin.v1.PluginModel.capabilities:type_name -> weknora.plugin.v1.ModelCapability
-	67, // 41: weknora.plugin.v1.PluginModel.metadata:type_name -> weknora.plugin.v1.PluginModel.MetadataEntry
-	10, // 42: weknora.plugin.v1.ChatRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	43, // 43: weknora.plugin.v1.ChatRequest.messages:type_name -> weknora.plugin.v1.ChatMessage
-	68, // 44: weknora.plugin.v1.ChatRequest.options:type_name -> weknora.plugin.v1.ChatRequest.OptionsEntry
-	51, // 45: weknora.plugin.v1.ChatEvent.usage:type_name -> weknora.plugin.v1.ModelUsage
-	10, // 46: weknora.plugin.v1.EmbedRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	47, // 47: weknora.plugin.v1.EmbedResponse.embeddings:type_name -> weknora.plugin.v1.Embedding
-	51, // 48: weknora.plugin.v1.EmbedResponse.usage:type_name -> weknora.plugin.v1.ModelUsage
-	10, // 49: weknora.plugin.v1.RerankRequest.context:type_name -> weknora.plugin.v1.InvocationContext
-	50, // 50: weknora.plugin.v1.RerankResponse.results:type_name -> weknora.plugin.v1.RerankResult
-	51, // 51: weknora.plugin.v1.RerankResponse.usage:type_name -> weknora.plugin.v1.ModelUsage
-	5,  // 52: weknora.plugin.v1.InstallPluginRequest.manifest:type_name -> weknora.plugin.v1.PluginManifest
-	70, // 53: weknora.plugin.v1.InstallPluginRequest.call_timeout:type_name -> google.protobuf.Duration
-	5,  // 54: weknora.plugin.v1.UpgradePluginRequest.manifest:type_name -> weknora.plugin.v1.PluginManifest
-	70, // 55: weknora.plugin.v1.UpgradePluginRequest.call_timeout:type_name -> google.protobuf.Duration
-	3,  // 56: weknora.plugin.v1.PluginRuntimeStatus.state:type_name -> weknora.plugin.v1.RuntimeState
-	71, // 57: weknora.plugin.v1.PluginRuntimeStatus.updated_at:type_name -> google.protobuf.Timestamp
-	55, // 58: weknora.plugin.v1.ListPluginStatusesResponse.statuses:type_name -> weknora.plugin.v1.PluginRuntimeStatus
-	60, // 59: weknora.plugin.v1.ListRuntimeEventsResponse.events:type_name -> weknora.plugin.v1.RuntimeEvent
-	71, // 60: weknora.plugin.v1.RuntimeEvent.occurred_at:type_name -> google.protobuf.Timestamp
-	69, // 61: weknora.plugin.v1.RuntimeEvent.details:type_name -> weknora.plugin.v1.RuntimeEvent.DetailsEntry
-	11, // 62: weknora.plugin.v1.PluginLifecycle.Handshake:input_type -> weknora.plugin.v1.HandshakeRequest
-	13, // 63: weknora.plugin.v1.PluginLifecycle.HealthCheck:input_type -> weknora.plugin.v1.HealthCheckRequest
-	15, // 64: weknora.plugin.v1.PluginLifecycle.ValidateConfig:input_type -> weknora.plugin.v1.ValidateConfigRequest
-	18, // 65: weknora.plugin.v1.DataSourcePlugin.ListResources:input_type -> weknora.plugin.v1.ListResourcesRequest
-	20, // 66: weknora.plugin.v1.DataSourcePlugin.ResolveResourceAncestors:input_type -> weknora.plugin.v1.ResolveResourceAncestorsRequest
-	23, // 67: weknora.plugin.v1.DataSourcePlugin.Sync:input_type -> weknora.plugin.v1.DataSourceSyncRequest
-	31, // 68: weknora.plugin.v1.DocumentParserPlugin.Parse:input_type -> weknora.plugin.v1.ParseRequest
-	36, // 69: weknora.plugin.v1.WebSearchPlugin.Search:input_type -> weknora.plugin.v1.WebSearchRequest
-	39, // 70: weknora.plugin.v1.ModelProviderPlugin.ListModels:input_type -> weknora.plugin.v1.ListModelsRequest
-	42, // 71: weknora.plugin.v1.ModelProviderPlugin.Chat:input_type -> weknora.plugin.v1.ChatRequest
-	45, // 72: weknora.plugin.v1.ModelProviderPlugin.Embed:input_type -> weknora.plugin.v1.EmbedRequest
-	48, // 73: weknora.plugin.v1.ModelProviderPlugin.Rerank:input_type -> weknora.plugin.v1.RerankRequest
-	52, // 74: weknora.plugin.v1.PluginRuntime.Install:input_type -> weknora.plugin.v1.InstallPluginRequest
-	53, // 75: weknora.plugin.v1.PluginRuntime.Upgrade:input_type -> weknora.plugin.v1.UpgradePluginRequest
-	54, // 76: weknora.plugin.v1.PluginRuntime.Start:input_type -> weknora.plugin.v1.PluginTargetRequest
-	54, // 77: weknora.plugin.v1.PluginRuntime.Stop:input_type -> weknora.plugin.v1.PluginTargetRequest
-	54, // 78: weknora.plugin.v1.PluginRuntime.Uninstall:input_type -> weknora.plugin.v1.PluginTargetRequest
-	54, // 79: weknora.plugin.v1.PluginRuntime.GetStatus:input_type -> weknora.plugin.v1.PluginTargetRequest
-	72, // 80: weknora.plugin.v1.PluginRuntime.ListStatuses:input_type -> google.protobuf.Empty
-	58, // 81: weknora.plugin.v1.PluginRuntime.ListEvents:input_type -> weknora.plugin.v1.ListRuntimeEventsRequest
-	57, // 82: weknora.plugin.v1.PluginRuntime.WatchEvents:input_type -> weknora.plugin.v1.WatchRuntimeEventsRequest
-	12, // 83: weknora.plugin.v1.PluginLifecycle.Handshake:output_type -> weknora.plugin.v1.HandshakeResponse
-	14, // 84: weknora.plugin.v1.PluginLifecycle.HealthCheck:output_type -> weknora.plugin.v1.HealthCheckResponse
-	16, // 85: weknora.plugin.v1.PluginLifecycle.ValidateConfig:output_type -> weknora.plugin.v1.ValidateConfigResponse
-	19, // 86: weknora.plugin.v1.DataSourcePlugin.ListResources:output_type -> weknora.plugin.v1.ListResourcesResponse
-	21, // 87: weknora.plugin.v1.DataSourcePlugin.ResolveResourceAncestors:output_type -> weknora.plugin.v1.ResolveResourceAncestorsResponse
-	24, // 88: weknora.plugin.v1.DataSourcePlugin.Sync:output_type -> weknora.plugin.v1.DataSourceSyncEvent
-	33, // 89: weknora.plugin.v1.DocumentParserPlugin.Parse:output_type -> weknora.plugin.v1.ParseEvent
-	37, // 90: weknora.plugin.v1.WebSearchPlugin.Search:output_type -> weknora.plugin.v1.WebSearchResponse
-	40, // 91: weknora.plugin.v1.ModelProviderPlugin.ListModels:output_type -> weknora.plugin.v1.ListModelsResponse
-	44, // 92: weknora.plugin.v1.ModelProviderPlugin.Chat:output_type -> weknora.plugin.v1.ChatEvent
-	46, // 93: weknora.plugin.v1.ModelProviderPlugin.Embed:output_type -> weknora.plugin.v1.EmbedResponse
-	49, // 94: weknora.plugin.v1.ModelProviderPlugin.Rerank:output_type -> weknora.plugin.v1.RerankResponse
-	55, // 95: weknora.plugin.v1.PluginRuntime.Install:output_type -> weknora.plugin.v1.PluginRuntimeStatus
-	55, // 96: weknora.plugin.v1.PluginRuntime.Upgrade:output_type -> weknora.plugin.v1.PluginRuntimeStatus
-	55, // 97: weknora.plugin.v1.PluginRuntime.Start:output_type -> weknora.plugin.v1.PluginRuntimeStatus
-	55, // 98: weknora.plugin.v1.PluginRuntime.Stop:output_type -> weknora.plugin.v1.PluginRuntimeStatus
-	72, // 99: weknora.plugin.v1.PluginRuntime.Uninstall:output_type -> google.protobuf.Empty
-	55, // 100: weknora.plugin.v1.PluginRuntime.GetStatus:output_type -> weknora.plugin.v1.PluginRuntimeStatus
-	56, // 101: weknora.plugin.v1.PluginRuntime.ListStatuses:output_type -> weknora.plugin.v1.ListPluginStatusesResponse
-	59, // 102: weknora.plugin.v1.PluginRuntime.ListEvents:output_type -> weknora.plugin.v1.ListRuntimeEventsResponse
-	60, // 103: weknora.plugin.v1.PluginRuntime.WatchEvents:output_type -> weknora.plugin.v1.RuntimeEvent
-	83, // [83:104] is the sub-list for method output_type
-	62, // [62:83] is the sub-list for method input_type
-	62, // [62:62] is the sub-list for extension type_name
-	62, // [62:62] is the sub-list for extension extendee
-	0,  // [0:62] is the sub-list for field type_name
+	0,   // 0: weknora.plugin.v1.PluginManifest.types:type_name -> weknora.plugin.v1.PluginType
+	10,  // 1: weknora.plugin.v1.PluginManifest.config:type_name -> weknora.plugin.v1.ConfigSchema
+	11,  // 2: weknora.plugin.v1.PluginManifest.permissions:type_name -> weknora.plugin.v1.PluginPermissions
+	87,  // 3: weknora.plugin.v1.PluginManifest.default_timeout:type_name -> google.protobuf.Duration
+	8,   // 4: weknora.plugin.v1.PluginManifest.supply_chain:type_name -> weknora.plugin.v1.PluginSupplyChain
+	9,   // 5: weknora.plugin.v1.PluginManifest.resources:type_name -> weknora.plugin.v1.PluginResourceLimits
+	1,   // 6: weknora.plugin.v1.PluginPermissions.data_access:type_name -> weknora.plugin.v1.DataAccess
+	12,  // 7: weknora.plugin.v1.HandshakeRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	7,   // 8: weknora.plugin.v1.HandshakeResponse.manifest:type_name -> weknora.plugin.v1.PluginManifest
+	12,  // 9: weknora.plugin.v1.HealthCheckRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	6,   // 10: weknora.plugin.v1.HealthCheckResponse.status:type_name -> weknora.plugin.v1.HealthCheckResponse.Status
+	74,  // 11: weknora.plugin.v1.HealthCheckResponse.details:type_name -> weknora.plugin.v1.HealthCheckResponse.DetailsEntry
+	12,  // 12: weknora.plugin.v1.ValidateConfigRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	19,  // 13: weknora.plugin.v1.ValidateConfigResponse.violations:type_name -> weknora.plugin.v1.FieldViolation
+	12,  // 14: weknora.plugin.v1.ListResourcesRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	24,  // 15: weknora.plugin.v1.ListResourcesResponse.resources:type_name -> weknora.plugin.v1.Resource
+	12,  // 16: weknora.plugin.v1.ResolveResourceAncestorsRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	88,  // 17: weknora.plugin.v1.Resource.modified_at:type_name -> google.protobuf.Timestamp
+	75,  // 18: weknora.plugin.v1.Resource.metadata:type_name -> weknora.plugin.v1.Resource.MetadataEntry
+	12,  // 19: weknora.plugin.v1.DataSourceSyncRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	27,  // 20: weknora.plugin.v1.DataSourceSyncEvent.document_begin:type_name -> weknora.plugin.v1.DocumentBegin
+	28,  // 21: weknora.plugin.v1.DataSourceSyncEvent.document_chunk:type_name -> weknora.plugin.v1.DocumentChunk
+	29,  // 22: weknora.plugin.v1.DataSourceSyncEvent.document_end:type_name -> weknora.plugin.v1.DocumentEnd
+	30,  // 23: weknora.plugin.v1.DataSourceSyncEvent.delete_document:type_name -> weknora.plugin.v1.DeleteDocument
+	31,  // 24: weknora.plugin.v1.DataSourceSyncEvent.checkpoint:type_name -> weknora.plugin.v1.CursorCheckpoint
+	32,  // 25: weknora.plugin.v1.DataSourceSyncEvent.warning:type_name -> weknora.plugin.v1.SyncWarning
+	88,  // 26: weknora.plugin.v1.DocumentBegin.updated_at:type_name -> google.protobuf.Timestamp
+	76,  // 27: weknora.plugin.v1.DocumentBegin.metadata:type_name -> weknora.plugin.v1.DocumentBegin.MetadataEntry
+	77,  // 28: weknora.plugin.v1.DeleteDocument.metadata:type_name -> weknora.plugin.v1.DeleteDocument.MetadataEntry
+	12,  // 29: weknora.plugin.v1.ParseRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	34,  // 30: weknora.plugin.v1.ParseRequest.begin:type_name -> weknora.plugin.v1.ParseBegin
+	36,  // 31: weknora.plugin.v1.ParseEvent.metadata:type_name -> weknora.plugin.v1.ParseMetadata
+	37,  // 32: weknora.plugin.v1.ParseEvent.attachment:type_name -> weknora.plugin.v1.ParsedAttachment
+	78,  // 33: weknora.plugin.v1.ParseMetadata.values:type_name -> weknora.plugin.v1.ParseMetadata.ValuesEntry
+	12,  // 34: weknora.plugin.v1.WebSearchRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	40,  // 35: weknora.plugin.v1.WebSearchResponse.results:type_name -> weknora.plugin.v1.WebSearchResult
+	88,  // 36: weknora.plugin.v1.WebSearchResult.published_at:type_name -> google.protobuf.Timestamp
+	79,  // 37: weknora.plugin.v1.WebSearchResult.metadata:type_name -> weknora.plugin.v1.WebSearchResult.MetadataEntry
+	12,  // 38: weknora.plugin.v1.ListModelsRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	43,  // 39: weknora.plugin.v1.ListModelsResponse.models:type_name -> weknora.plugin.v1.PluginModel
+	2,   // 40: weknora.plugin.v1.PluginModel.capabilities:type_name -> weknora.plugin.v1.ModelCapability
+	80,  // 41: weknora.plugin.v1.PluginModel.metadata:type_name -> weknora.plugin.v1.PluginModel.MetadataEntry
+	12,  // 42: weknora.plugin.v1.ChatRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	45,  // 43: weknora.plugin.v1.ChatRequest.messages:type_name -> weknora.plugin.v1.ChatMessage
+	81,  // 44: weknora.plugin.v1.ChatRequest.options:type_name -> weknora.plugin.v1.ChatRequest.OptionsEntry
+	53,  // 45: weknora.plugin.v1.ChatEvent.usage:type_name -> weknora.plugin.v1.ModelUsage
+	12,  // 46: weknora.plugin.v1.EmbedRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	49,  // 47: weknora.plugin.v1.EmbedResponse.embeddings:type_name -> weknora.plugin.v1.Embedding
+	53,  // 48: weknora.plugin.v1.EmbedResponse.usage:type_name -> weknora.plugin.v1.ModelUsage
+	12,  // 49: weknora.plugin.v1.RerankRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	52,  // 50: weknora.plugin.v1.RerankResponse.results:type_name -> weknora.plugin.v1.RerankResult
+	53,  // 51: weknora.plugin.v1.RerankResponse.usage:type_name -> weknora.plugin.v1.ModelUsage
+	12,  // 52: weknora.plugin.v1.RetrievalUpsertRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	54,  // 53: weknora.plugin.v1.RetrievalUpsertRequest.documents:type_name -> weknora.plugin.v1.RetrievalIndexDocument
+	12,  // 54: weknora.plugin.v1.RetrievalRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	3,   // 55: weknora.plugin.v1.RetrievalRequest.retriever_type:type_name -> weknora.plugin.v1.PluginRetrieverType
+	58,  // 56: weknora.plugin.v1.RetrievalResponse.results:type_name -> weknora.plugin.v1.RetrievalResultSet
+	3,   // 57: weknora.plugin.v1.RetrievalResultSet.retriever_type:type_name -> weknora.plugin.v1.PluginRetrieverType
+	59,  // 58: weknora.plugin.v1.RetrievalResultSet.hits:type_name -> weknora.plugin.v1.RetrievalHit
+	12,  // 59: weknora.plugin.v1.RetrievalEstimateStorageRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	54,  // 60: weknora.plugin.v1.RetrievalEstimateStorageRequest.documents:type_name -> weknora.plugin.v1.RetrievalIndexDocument
+	12,  // 61: weknora.plugin.v1.RetrievalDeleteRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	4,   // 62: weknora.plugin.v1.RetrievalDeleteRequest.target:type_name -> weknora.plugin.v1.RetrievalDeleteTarget
+	12,  // 63: weknora.plugin.v1.RetrievalCopyRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	82,  // 64: weknora.plugin.v1.RetrievalCopyRequest.knowledge_base_id_map:type_name -> weknora.plugin.v1.RetrievalCopyRequest.KnowledgeBaseIdMapEntry
+	83,  // 65: weknora.plugin.v1.RetrievalCopyRequest.chunk_id_map:type_name -> weknora.plugin.v1.RetrievalCopyRequest.ChunkIdMapEntry
+	12,  // 66: weknora.plugin.v1.RetrievalUpdateChunksRequest.context:type_name -> weknora.plugin.v1.InvocationContext
+	84,  // 67: weknora.plugin.v1.RetrievalUpdateChunksRequest.enabled_status:type_name -> weknora.plugin.v1.RetrievalUpdateChunksRequest.EnabledStatusEntry
+	85,  // 68: weknora.plugin.v1.RetrievalUpdateChunksRequest.tag_ids:type_name -> weknora.plugin.v1.RetrievalUpdateChunksRequest.TagIdsEntry
+	7,   // 69: weknora.plugin.v1.InstallPluginRequest.manifest:type_name -> weknora.plugin.v1.PluginManifest
+	87,  // 70: weknora.plugin.v1.InstallPluginRequest.call_timeout:type_name -> google.protobuf.Duration
+	7,   // 71: weknora.plugin.v1.UpgradePluginRequest.manifest:type_name -> weknora.plugin.v1.PluginManifest
+	87,  // 72: weknora.plugin.v1.UpgradePluginRequest.call_timeout:type_name -> google.protobuf.Duration
+	5,   // 73: weknora.plugin.v1.PluginRuntimeStatus.state:type_name -> weknora.plugin.v1.RuntimeState
+	88,  // 74: weknora.plugin.v1.PluginRuntimeStatus.updated_at:type_name -> google.protobuf.Timestamp
+	68,  // 75: weknora.plugin.v1.ListPluginStatusesResponse.statuses:type_name -> weknora.plugin.v1.PluginRuntimeStatus
+	73,  // 76: weknora.plugin.v1.ListRuntimeEventsResponse.events:type_name -> weknora.plugin.v1.RuntimeEvent
+	88,  // 77: weknora.plugin.v1.RuntimeEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	86,  // 78: weknora.plugin.v1.RuntimeEvent.details:type_name -> weknora.plugin.v1.RuntimeEvent.DetailsEntry
+	13,  // 79: weknora.plugin.v1.PluginLifecycle.Handshake:input_type -> weknora.plugin.v1.HandshakeRequest
+	15,  // 80: weknora.plugin.v1.PluginLifecycle.HealthCheck:input_type -> weknora.plugin.v1.HealthCheckRequest
+	17,  // 81: weknora.plugin.v1.PluginLifecycle.ValidateConfig:input_type -> weknora.plugin.v1.ValidateConfigRequest
+	20,  // 82: weknora.plugin.v1.DataSourcePlugin.ListResources:input_type -> weknora.plugin.v1.ListResourcesRequest
+	22,  // 83: weknora.plugin.v1.DataSourcePlugin.ResolveResourceAncestors:input_type -> weknora.plugin.v1.ResolveResourceAncestorsRequest
+	25,  // 84: weknora.plugin.v1.DataSourcePlugin.Sync:input_type -> weknora.plugin.v1.DataSourceSyncRequest
+	33,  // 85: weknora.plugin.v1.DocumentParserPlugin.Parse:input_type -> weknora.plugin.v1.ParseRequest
+	38,  // 86: weknora.plugin.v1.WebSearchPlugin.Search:input_type -> weknora.plugin.v1.WebSearchRequest
+	41,  // 87: weknora.plugin.v1.ModelProviderPlugin.ListModels:input_type -> weknora.plugin.v1.ListModelsRequest
+	44,  // 88: weknora.plugin.v1.ModelProviderPlugin.Chat:input_type -> weknora.plugin.v1.ChatRequest
+	47,  // 89: weknora.plugin.v1.ModelProviderPlugin.Embed:input_type -> weknora.plugin.v1.EmbedRequest
+	50,  // 90: weknora.plugin.v1.ModelProviderPlugin.Rerank:input_type -> weknora.plugin.v1.RerankRequest
+	55,  // 91: weknora.plugin.v1.RetrievalEnginePlugin.Upsert:input_type -> weknora.plugin.v1.RetrievalUpsertRequest
+	56,  // 92: weknora.plugin.v1.RetrievalEnginePlugin.Retrieve:input_type -> weknora.plugin.v1.RetrievalRequest
+	60,  // 93: weknora.plugin.v1.RetrievalEnginePlugin.EstimateStorage:input_type -> weknora.plugin.v1.RetrievalEstimateStorageRequest
+	62,  // 94: weknora.plugin.v1.RetrievalEnginePlugin.Delete:input_type -> weknora.plugin.v1.RetrievalDeleteRequest
+	63,  // 95: weknora.plugin.v1.RetrievalEnginePlugin.Copy:input_type -> weknora.plugin.v1.RetrievalCopyRequest
+	64,  // 96: weknora.plugin.v1.RetrievalEnginePlugin.UpdateChunks:input_type -> weknora.plugin.v1.RetrievalUpdateChunksRequest
+	65,  // 97: weknora.plugin.v1.PluginRuntime.Install:input_type -> weknora.plugin.v1.InstallPluginRequest
+	66,  // 98: weknora.plugin.v1.PluginRuntime.Upgrade:input_type -> weknora.plugin.v1.UpgradePluginRequest
+	67,  // 99: weknora.plugin.v1.PluginRuntime.Start:input_type -> weknora.plugin.v1.PluginTargetRequest
+	67,  // 100: weknora.plugin.v1.PluginRuntime.Stop:input_type -> weknora.plugin.v1.PluginTargetRequest
+	67,  // 101: weknora.plugin.v1.PluginRuntime.Uninstall:input_type -> weknora.plugin.v1.PluginTargetRequest
+	67,  // 102: weknora.plugin.v1.PluginRuntime.GetStatus:input_type -> weknora.plugin.v1.PluginTargetRequest
+	89,  // 103: weknora.plugin.v1.PluginRuntime.ListStatuses:input_type -> google.protobuf.Empty
+	71,  // 104: weknora.plugin.v1.PluginRuntime.ListEvents:input_type -> weknora.plugin.v1.ListRuntimeEventsRequest
+	70,  // 105: weknora.plugin.v1.PluginRuntime.WatchEvents:input_type -> weknora.plugin.v1.WatchRuntimeEventsRequest
+	14,  // 106: weknora.plugin.v1.PluginLifecycle.Handshake:output_type -> weknora.plugin.v1.HandshakeResponse
+	16,  // 107: weknora.plugin.v1.PluginLifecycle.HealthCheck:output_type -> weknora.plugin.v1.HealthCheckResponse
+	18,  // 108: weknora.plugin.v1.PluginLifecycle.ValidateConfig:output_type -> weknora.plugin.v1.ValidateConfigResponse
+	21,  // 109: weknora.plugin.v1.DataSourcePlugin.ListResources:output_type -> weknora.plugin.v1.ListResourcesResponse
+	23,  // 110: weknora.plugin.v1.DataSourcePlugin.ResolveResourceAncestors:output_type -> weknora.plugin.v1.ResolveResourceAncestorsResponse
+	26,  // 111: weknora.plugin.v1.DataSourcePlugin.Sync:output_type -> weknora.plugin.v1.DataSourceSyncEvent
+	35,  // 112: weknora.plugin.v1.DocumentParserPlugin.Parse:output_type -> weknora.plugin.v1.ParseEvent
+	39,  // 113: weknora.plugin.v1.WebSearchPlugin.Search:output_type -> weknora.plugin.v1.WebSearchResponse
+	42,  // 114: weknora.plugin.v1.ModelProviderPlugin.ListModels:output_type -> weknora.plugin.v1.ListModelsResponse
+	46,  // 115: weknora.plugin.v1.ModelProviderPlugin.Chat:output_type -> weknora.plugin.v1.ChatEvent
+	48,  // 116: weknora.plugin.v1.ModelProviderPlugin.Embed:output_type -> weknora.plugin.v1.EmbedResponse
+	51,  // 117: weknora.plugin.v1.ModelProviderPlugin.Rerank:output_type -> weknora.plugin.v1.RerankResponse
+	89,  // 118: weknora.plugin.v1.RetrievalEnginePlugin.Upsert:output_type -> google.protobuf.Empty
+	57,  // 119: weknora.plugin.v1.RetrievalEnginePlugin.Retrieve:output_type -> weknora.plugin.v1.RetrievalResponse
+	61,  // 120: weknora.plugin.v1.RetrievalEnginePlugin.EstimateStorage:output_type -> weknora.plugin.v1.RetrievalEstimateStorageResponse
+	89,  // 121: weknora.plugin.v1.RetrievalEnginePlugin.Delete:output_type -> google.protobuf.Empty
+	89,  // 122: weknora.plugin.v1.RetrievalEnginePlugin.Copy:output_type -> google.protobuf.Empty
+	89,  // 123: weknora.plugin.v1.RetrievalEnginePlugin.UpdateChunks:output_type -> google.protobuf.Empty
+	68,  // 124: weknora.plugin.v1.PluginRuntime.Install:output_type -> weknora.plugin.v1.PluginRuntimeStatus
+	68,  // 125: weknora.plugin.v1.PluginRuntime.Upgrade:output_type -> weknora.plugin.v1.PluginRuntimeStatus
+	68,  // 126: weknora.plugin.v1.PluginRuntime.Start:output_type -> weknora.plugin.v1.PluginRuntimeStatus
+	68,  // 127: weknora.plugin.v1.PluginRuntime.Stop:output_type -> weknora.plugin.v1.PluginRuntimeStatus
+	89,  // 128: weknora.plugin.v1.PluginRuntime.Uninstall:output_type -> google.protobuf.Empty
+	68,  // 129: weknora.plugin.v1.PluginRuntime.GetStatus:output_type -> weknora.plugin.v1.PluginRuntimeStatus
+	69,  // 130: weknora.plugin.v1.PluginRuntime.ListStatuses:output_type -> weknora.plugin.v1.ListPluginStatusesResponse
+	72,  // 131: weknora.plugin.v1.PluginRuntime.ListEvents:output_type -> weknora.plugin.v1.ListRuntimeEventsResponse
+	73,  // 132: weknora.plugin.v1.PluginRuntime.WatchEvents:output_type -> weknora.plugin.v1.RuntimeEvent
+	106, // [106:133] is the sub-list for method output_type
+	79,  // [79:106] is the sub-list for method input_type
+	79,  // [79:79] is the sub-list for extension type_name
+	79,  // [79:79] is the sub-list for extension extendee
+	0,   // [0:79] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_plugin_v1_plugin_proto_init() }
@@ -4583,10 +5782,10 @@ func file_api_proto_plugin_v1_plugin_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_plugin_v1_plugin_proto_rawDesc), len(file_api_proto_plugin_v1_plugin_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   65,
+			NumEnums:      7,
+			NumMessages:   80,
 			NumExtensions: 0,
-			NumServices:   6,
+			NumServices:   7,
 		},
 		GoTypes:           file_api_proto_plugin_v1_plugin_proto_goTypes,
 		DependencyIndexes: file_api_proto_plugin_v1_plugin_proto_depIdxs,

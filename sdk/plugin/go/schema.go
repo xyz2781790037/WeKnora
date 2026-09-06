@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -34,7 +35,8 @@ func ValidateConfigSchema(schema map[string]any) error {
 	if !ok {
 		return errors.New("config.schema.properties must be an object")
 	}
-	for key, raw := range properties {
+	for _, key := range sortedConfigKeys(properties) {
+		raw := properties[key]
 		key = strings.TrimSpace(key)
 		if key == "" || strings.Contains(key, ".") {
 			return fmt.Errorf("config.schema property %q must be a non-empty top-level field", key)
@@ -111,7 +113,8 @@ func ValidateConfigValues(schema map[string]any, values map[string]any) error {
 			return fmt.Errorf("config field %q is required", key)
 		}
 	}
-	for key, value := range values {
+	for _, key := range sortedConfigKeys(values) {
+		value := values[key]
 		raw, exists := properties[key]
 		if !exists {
 			if additional, _ := schema["additionalProperties"].(bool); !additional {
@@ -145,6 +148,15 @@ func ValidateConfigValues(schema map[string]any, values map[string]any) error {
 		}
 	}
 	return nil
+}
+
+func sortedConfigKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // NormalizeConfigValues restores non-string JSON values from feature stores

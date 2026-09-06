@@ -25,7 +25,7 @@ const (
 	// ManifestAPIVersion is the only manifest schema supported by this SDK.
 	ManifestAPIVersion = "weknora.io/v1"
 	// ProtocolVersion is the protocol implemented by this SDK.
-	ProtocolVersion = "1.0.0"
+	ProtocolVersion = "1.1.0"
 	// ManifestKind distinguishes plugin manifests from other YAML documents.
 	ManifestKind = "Plugin"
 )
@@ -33,6 +33,7 @@ const (
 var pluginIDPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9.-]{1,126}[a-z0-9])$`)
 var publisherPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,127})$`)
 var imageDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+var retrieverEngineTypePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,49}$`)
 
 // Manifest is the portable plugin.yaml representation. It intentionally keeps
 // runtime concerns out of the type so the same file can be validated by the
@@ -61,6 +62,7 @@ type ManifestSpec struct {
 	Types                    []string            `yaml:"types" json:"types"`
 	Capabilities             []string            `yaml:"capabilities" json:"capabilities"`
 	ConnectorType            string              `yaml:"connectorType" json:"connector_type"`
+	RetrieverEngineType      string              `yaml:"retrieverEngineType" json:"retriever_engine_type"`
 	Icon                     string              `yaml:"icon" json:"icon"`
 	Config                   ManifestConfig      `yaml:"config" json:"config"`
 	Permissions              ManifestPermissions `yaml:"permissions" json:"permissions"`
@@ -174,6 +176,16 @@ func (m *Manifest) Validate() error {
 	if _, ok := typeSet["data_source"]; ok && strings.TrimSpace(m.Spec.ConnectorType) == "" {
 		return errors.New("connectorType is required for a data_source plugin")
 	}
+	if _, ok := typeSet["retrieval_engine"]; ok {
+		protocolVersion, _ := semver.Parse(strings.TrimPrefix(m.Spec.ProtocolVersion, "v"))
+		if protocolVersion.LT(semver.MustParse("1.1.0")) {
+			return errors.New("retrieval_engine requires protocolVersion >=1.1.0")
+		}
+		engineType := strings.TrimSpace(m.Spec.RetrieverEngineType)
+		if !retrieverEngineTypePattern.MatchString(engineType) {
+			return errors.New("retrieverEngineType must start with a lowercase letter and contain only lowercase letters, digits, underscores or hyphens")
+		}
+	}
 
 	if len(m.Spec.Config.Schema) == 0 {
 		return errors.New("config.schema is required")
@@ -194,8 +206,14 @@ func (m *Manifest) Validate() error {
 		if _, duplicate := secretFields[field]; duplicate {
 			return fmt.Errorf("config.secretFields contains duplicate field %q", field)
 		}
-		if _, exists := properties[field]; !exists {
+		rawProperty, exists := properties[field]
+		if !exists {
 			return fmt.Errorf("config.secretFields field %q is not defined in config.schema.properties", field)
+		}
+		property, _ := rawProperty.(map[string]any)
+		propertyType, _ := property["type"].(string)
+		if propertyType != "string" {
+			return fmt.Errorf("config.secretFields field %q must have type string", field)
 		}
 		secretFields[field] = struct{}{}
 	}
@@ -278,9 +296,10 @@ func (m *Manifest) ToProto() (*pluginv1.PluginManifest, error) {
 			AllowedHosts: append([]string(nil), m.Spec.Permissions.AllowedHosts...),
 			DataAccess:   access,
 		},
-		DefaultTimeout: durationpb.New(m.Spec.DefaultTimeout),
-		ConnectorType:  m.Spec.ConnectorType,
-		Icon:           m.Spec.Icon,
+		DefaultTimeout:      durationpb.New(m.Spec.DefaultTimeout),
+		ConnectorType:       m.Spec.ConnectorType,
+		RetrieverEngineType: m.Spec.RetrieverEngineType,
+		Icon:                m.Spec.Icon,
 	}
 	if hasSupplyChain(m.Spec.SupplyChain) {
 		result.SupplyChain = &pluginv1.PluginSupplyChain{
@@ -370,10 +389,11 @@ func (m *Manifest) NormalizedTypes() []string {
 }
 
 var pluginTypeToProto = map[string]pluginv1.PluginType{
-	"data_source":     pluginv1.PluginType_PLUGIN_TYPE_DATA_SOURCE,
-	"document_parser": pluginv1.PluginType_PLUGIN_TYPE_DOCUMENT_PARSER,
-	"web_search":      pluginv1.PluginType_PLUGIN_TYPE_WEB_SEARCH,
-	"model_provider":  pluginv1.PluginType_PLUGIN_TYPE_MODEL_PROVIDER,
+	"data_source":      pluginv1.PluginType_PLUGIN_TYPE_DATA_SOURCE,
+	"document_parser":  pluginv1.PluginType_PLUGIN_TYPE_DOCUMENT_PARSER,
+	"web_search":       pluginv1.PluginType_PLUGIN_TYPE_WEB_SEARCH,
+	"model_provider":   pluginv1.PluginType_PLUGIN_TYPE_MODEL_PROVIDER,
+	"retrieval_engine": pluginv1.PluginType_PLUGIN_TYPE_RETRIEVAL_ENGINE,
 }
 
 var dataAccessToProto = map[string]pluginv1.DataAccess{
@@ -381,6 +401,7 @@ var dataAccessToProto = map[string]pluginv1.DataAccess{
 	"document_metadata": pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA,
 	"query_text":        pluginv1.DataAccess_DATA_ACCESS_QUERY_TEXT,
 	"conversation":      pluginv1.DataAccess_DATA_ACCESS_CONVERSATION,
+	"embeddings":        pluginv1.DataAccess_DATA_ACCESS_EMBEDDINGS,
 }
 
 func normalizePluginType(value string) string {

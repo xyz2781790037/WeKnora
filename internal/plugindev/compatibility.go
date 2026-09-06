@@ -146,10 +146,11 @@ func requireDeclaredServices(manifest *pluginsdk.Manifest, services []string) er
 	}
 	required := []string{"weknora.plugin.v1.PluginLifecycle"}
 	serviceByType := map[string]string{
-		"data_source":     "weknora.plugin.v1.DataSourcePlugin",
-		"document_parser": "weknora.plugin.v1.DocumentParserPlugin",
-		"web_search":      "weknora.plugin.v1.WebSearchPlugin",
-		"model_provider":  "weknora.plugin.v1.ModelProviderPlugin",
+		"data_source":      "weknora.plugin.v1.DataSourcePlugin",
+		"document_parser":  "weknora.plugin.v1.DocumentParserPlugin",
+		"web_search":       "weknora.plugin.v1.WebSearchPlugin",
+		"model_provider":   "weknora.plugin.v1.ModelProviderPlugin",
+		"retrieval_engine": "weknora.plugin.v1.RetrievalEnginePlugin",
 	}
 	for _, pluginType := range manifest.NormalizedTypes() {
 		required = append(required, serviceByType[pluginType])

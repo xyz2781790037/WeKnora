@@ -10,7 +10,7 @@ import (
 )
 
 func TestScaffoldGeneratesValidManifestForEveryType(t *testing.T) {
-	for _, pluginType := range []string{"data_source", "document_parser", "web_search", "model_provider"} {
+	for _, pluginType := range []string{"data_source", "document_parser", "web_search", "model_provider", "retrieval_engine"} {
 		t.Run(pluginType, func(t *testing.T) {
 			output := filepath.Join(t.TempDir(), "plugin")
 			id := "io.example." + strings.ReplaceAll(pluginType, "_", "-")
@@ -40,4 +40,16 @@ func TestScaffoldRefusesNonEmptyOutput(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(output, "keep"), []byte("user data"), 0o644))
 	err := Scaffold(ScaffoldOptions{Output: output, Type: "web_search", ID: "io.example.search", Name: "Search"})
 	require.ErrorContains(t, err, "not empty")
+}
+
+func TestScaffoldLongRetrievalIDProducesValidEngineType(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "plugin")
+	id := "io.example." + strings.Repeat("long-segment-", 8) + "plugin"
+	require.NoError(t, Scaffold(ScaffoldOptions{
+		Output: output, Type: "retrieval_engine", ID: id, Name: "Long ID", SDKPath: filepath.Join("..", ".."),
+	}))
+	manifest, err := ValidateManifest(filepath.Join(output, "plugin.yaml"))
+	require.NoError(t, err)
+	require.LessOrEqual(t, len(manifest.Spec.RetrieverEngineType), 50)
+	require.Equal(t, generatedRetrieverType(id), manifest.Spec.RetrieverEngineType)
 }

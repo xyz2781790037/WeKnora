@@ -46,6 +46,20 @@ service ModelProviderPlugin {
   rpc Rerank(RerankRequest) returns (RerankResponse);
 }
 
+// RetrievalEnginePlugin persists chunk indices and executes vector or keyword
+// retrieval. WeKnora computes embeddings and owns cross-engine fusion; plugins
+// only implement the storage-facing repository operations.
+service RetrievalEnginePlugin {
+  rpc Upsert(RetrievalUpsertRequest) returns (google.protobuf.Empty);
+  rpc Retrieve(RetrievalRequest) returns (RetrievalResponse);
+  rpc EstimateStorage(RetrievalEstimateStorageRequest)
+      returns (RetrievalEstimateStorageResponse);
+  rpc Delete(RetrievalDeleteRequest) returns (google.protobuf.Empty);
+  rpc Copy(RetrievalCopyRequest) returns (google.protobuf.Empty);
+  rpc UpdateChunks(RetrievalUpdateChunksRequest)
+      returns (google.protobuf.Empty);
+}
+
 // PluginRuntime owns container lifecycle. WeKnora talks to this service and
 // never mounts or calls the Docker socket itself.
 service PluginRuntime {
@@ -66,6 +80,7 @@ enum PluginType {
   PLUGIN_TYPE_DOCUMENT_PARSER = 2;
   PLUGIN_TYPE_WEB_SEARCH = 3;
   PLUGIN_TYPE_MODEL_PROVIDER = 4;
+  PLUGIN_TYPE_RETRIEVAL_ENGINE = 5;
 }
 
 enum DataAccess {
@@ -74,6 +89,7 @@ enum DataAccess {
   DATA_ACCESS_DOCUMENT_METADATA = 2;
   DATA_ACCESS_QUERY_TEXT = 3;
   DATA_ACCESS_CONVERSATION = 4;
+  DATA_ACCESS_EMBEDDINGS = 5;
 }
 
 message PluginManifest {
@@ -93,6 +109,7 @@ message PluginManifest {
   string icon = 14;
   PluginSupplyChain supply_chain = 15;
   PluginResourceLimits resources = 16;
+  string retriever_engine_type = 17;
 }
 
 // PluginSupplyChain binds a release to one immutable image digest. The
@@ -406,6 +423,117 @@ message RerankResult {
 message ModelUsage {
   uint64 input_tokens = 1;
   uint64 output_tokens = 2;
+}
+
+enum PluginRetrieverType {
+  PLUGIN_RETRIEVER_TYPE_UNSPECIFIED = 0;
+  PLUGIN_RETRIEVER_TYPE_KEYWORDS = 1;
+  PLUGIN_RETRIEVER_TYPE_VECTOR = 2;
+}
+
+message RetrievalIndexDocument {
+  string id = 1;
+  string content = 2;
+  string source_id = 3;
+  int32 source_type = 4;
+  string chunk_id = 5;
+  string knowledge_id = 6;
+  string knowledge_base_id = 7;
+  string knowledge_type = 8;
+  string tag_id = 9;
+  bool is_enabled = 10;
+  bool is_recommended = 11;
+  repeated float embedding = 12;
+}
+
+message RetrievalUpsertRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  repeated RetrievalIndexDocument documents = 3;
+}
+
+message RetrievalRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  string query = 3;
+  repeated float embedding = 4;
+  repeated string knowledge_base_ids = 5;
+  repeated string knowledge_ids = 6;
+  repeated string tag_ids = 7;
+  repeated string exclude_knowledge_ids = 8;
+  repeated string exclude_chunk_ids = 9;
+  uint32 top_k = 10;
+  double threshold = 11;
+  string knowledge_type = 12;
+  bytes additional_params_json = 13;
+  PluginRetrieverType retriever_type = 14;
+}
+
+message RetrievalResponse {
+  repeated RetrievalResultSet results = 1;
+}
+
+message RetrievalResultSet {
+  PluginRetrieverType retriever_type = 1;
+  repeated RetrievalHit hits = 2;
+}
+
+message RetrievalHit {
+  string id = 1;
+  string content = 2;
+  string source_id = 3;
+  int32 source_type = 4;
+  string chunk_id = 5;
+  string knowledge_id = 6;
+  string knowledge_base_id = 7;
+  string tag_id = 8;
+  double score = 9;
+  int32 match_type = 10;
+  bool is_enabled = 11;
+}
+
+message RetrievalEstimateStorageRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  repeated RetrievalIndexDocument documents = 3;
+}
+
+message RetrievalEstimateStorageResponse {
+  int64 bytes = 1;
+}
+
+enum RetrievalDeleteTarget {
+  RETRIEVAL_DELETE_TARGET_UNSPECIFIED = 0;
+  RETRIEVAL_DELETE_TARGET_CHUNK = 1;
+  RETRIEVAL_DELETE_TARGET_SOURCE = 2;
+  RETRIEVAL_DELETE_TARGET_KNOWLEDGE = 3;
+}
+
+message RetrievalDeleteRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  RetrievalDeleteTarget target = 3;
+  repeated string ids = 4;
+  int32 dimension = 5;
+  string knowledge_type = 6;
+}
+
+message RetrievalCopyRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  string source_knowledge_base_id = 3;
+  map<string, string> knowledge_base_id_map = 4;
+  map<string, string> chunk_id_map = 5;
+  string target_knowledge_base_id = 6;
+  int32 dimension = 7;
+  string knowledge_type = 8;
+}
+
+message RetrievalUpdateChunksRequest {
+  InvocationContext context = 1;
+  bytes config_json = 2;
+  map<string, bool> enabled_status = 3;
+  map<string, string> tag_ids = 4;
 }
 
 message InstallPluginRequest {

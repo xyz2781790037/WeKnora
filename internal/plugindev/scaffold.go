@@ -2,6 +2,7 @@ package plugindev
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -30,6 +31,7 @@ type scaffoldData struct {
 	Image         string
 	Module        string
 	ConnectorType string
+	RetrieverType string
 	Handler       string
 	ServerField   string
 	Capabilities  string
@@ -87,7 +89,7 @@ func Scaffold(options ScaffoldOptions) error {
 func normalizeScaffoldOptions(options ScaffoldOptions) (scaffoldData, error) {
 	pluginType := strings.ToLower(strings.TrimSpace(options.Type))
 	switch pluginType {
-	case "data_source", "document_parser", "web_search", "model_provider":
+	case "data_source", "document_parser", "web_search", "model_provider", "retrieval_engine":
 	default:
 		return scaffoldData{}, fmt.Errorf("unsupported plugin type %q", options.Type)
 	}
@@ -118,16 +120,30 @@ func normalizeScaffoldOptions(options ScaffoldOptions) (scaffoldData, error) {
 		image = "ghcr.io/your-org/" + strings.ReplaceAll(options.ID, ".", "-") + ":0.1.0"
 	}
 	connectorType := ""
+	retrieverType := ""
 	if pluginType == "data_source" {
 		connectorType = strings.Trim(packageNamePattern.ReplaceAllString(options.ID, "_"), "_")
+	}
+	if pluginType == "retrieval_engine" {
+		retrieverType = generatedRetrieverType(options.ID)
 	}
 	handler, field, capabilities, access := capabilityTemplate(pluginType)
 	return scaffoldData{
 		Type: pluginType, ID: strings.TrimSpace(options.ID), Name: strings.TrimSpace(options.Name),
 		Image: image, Module: "example.com/" + strings.ReplaceAll(options.ID, ".", "-"),
-		ConnectorType: connectorType, Handler: handler, ServerField: field,
+		ConnectorType: connectorType, RetrieverType: retrieverType, Handler: handler, ServerField: field,
 		Capabilities: capabilities, DataAccess: access, SDKPath: filepath.ToSlash(relativeSDKPath),
 	}, nil
+}
+
+func generatedRetrieverType(pluginID string) string {
+	value := strings.Trim(packageNamePattern.ReplaceAllString(pluginID, "_"), "_")
+	if len(value) <= 50 {
+		return value
+	}
+	sum := sha256.Sum256([]byte(pluginID))
+	suffix := fmt.Sprintf("_%x", sum[:4])
+	return strings.TrimRight(value[:50-len(suffix)], "_") + suffix
 }
 
 func render(name, source string, data scaffoldData) ([]byte, error) {
@@ -150,6 +166,8 @@ func capabilityTemplate(pluginType string) (handler, serverField, capabilities, 
 		return parserHandler, "DocumentParser", "\n    - file_type:md", "\n      - document_content\n      - document_metadata"
 	case "web_search":
 		return webSearchHandler, "WebSearch", "\n    - search", "\n      - query_text"
+	case "retrieval_engine":
+		return retrievalEngineHandler, "RetrievalEngine", "\n    - keywords\n    - vector", "\n      - document_content\n      - document_metadata\n      - query_text\n      - embeddings"
 	default:
 		return modelProviderHandler, "ModelProvider", "\n    - chat\n    - embedding\n    - rerank", "\n      - conversation\n      - query_text\n      - document_content"
 	}
@@ -243,6 +261,15 @@ func (*handler) Chat(_ context.Context, _ plugin.ChatInput, emitter plugin.ChatE
 func (*handler) Embed(context.Context, plugin.EmbedInput) (plugin.EmbedOutput, error) { return plugin.EmbedOutput{}, nil }
 func (*handler) Rerank(context.Context, plugin.RerankInput) (plugin.RerankOutput, error) { return plugin.RerankOutput{}, nil }`
 
+const retrievalEngineHandler = `func (*handler) Upsert(context.Context, plugin.RetrievalUpsertInput) error { return nil }
+func (*handler) Retrieve(_ context.Context, input plugin.RetrievalQueryInput) ([]plugin.RetrievalResultSet, error) {
+	return []plugin.RetrievalResultSet{{RetrieverType: input.RetrieverType}}, nil
+}
+func (*handler) EstimateStorage(context.Context, plugin.RetrievalEstimateInput) (int64, error) { return 0, nil }
+func (*handler) Delete(context.Context, plugin.RetrievalDeleteInput) error { return nil }
+func (*handler) Copy(context.Context, plugin.RetrievalCopyInput) error { return nil }
+func (*handler) UpdateChunks(context.Context, plugin.RetrievalUpdateChunksInput) error { return nil }`
+
 const manifestTemplate = `apiVersion: weknora.io/v1
 kind: Plugin
 metadata:
@@ -251,13 +278,14 @@ metadata:
   description: 使用 pluginctl 生成的 {{.Type}} 插件
   version: 0.1.0
 spec:
-  protocolVersion: 1.0.0
+  protocolVersion: 1.1.0
   weknoraVersion: ">=0.2.0"
   image: {{.Image}}
   types:
     - {{.Type}}
   capabilities:{{.Capabilities}}
 {{if .ConnectorType}}  connectorType: {{.ConnectorType}}
+{{end}}{{if .RetrieverType}}  retrieverEngineType: {{.RetrieverType}}
 {{end}}  icon: extension
   defaultTimeout: 2m
   config:

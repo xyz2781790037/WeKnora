@@ -22,6 +22,7 @@ func TypeSpecifications() []TypeSpecification {
 		{Type: "document_parser", ConfigScope: "tenant_parser_engine", RequiredManifestFields: []string{"spec.config.schema", "spec.capabilities[file_type:*]", "spec.permissions.dataAccess[document_content,document_metadata]"}, SupportedSecretFields: []string{}, CapabilityExamples: []string{"file_type:pdf", "file_type:docx"}},
 		{Type: "web_search", ConfigScope: "web_search_provider", RequiredManifestFields: []string{"spec.config.schema", "spec.permissions.dataAccess[query_text]"}, SupportedSecretFields: []string{"api_key"}, CapabilityExamples: []string{"search"}},
 		{Type: "model_provider", ConfigScope: "model_instance", RequiredManifestFields: []string{"spec.config.schema", "spec.capabilities", "spec.permissions.dataAccess[按能力]"}, SupportedSecretFields: []string{"api_key", "app_secret"}, CapabilityExamples: []string{"chat", "embedding", "rerank"}},
+		{Type: "retrieval_engine", ConfigScope: "vector_store_instance", RequiredManifestFields: []string{"spec.retrieverEngineType", "spec.config.schema", "spec.capabilities[keywords|vector]", "spec.permissions.dataAccess[按能力]"}, SupportedSecretFields: []string{"*"}, CapabilityExamples: []string{"keywords", "vector"}},
 	}
 }
 
@@ -89,6 +90,26 @@ func validateTypeConfigContract(types map[string]struct{}, secretFields, capabil
 			if field != "api_key" && field != "app_secret" {
 				return fmt.Errorf("model_provider secret field %q is unsupported", field)
 			}
+		}
+	}
+	if _, retrieval := types["retrieval_engine"]; retrieval {
+		hasCapability := false
+		for _, capability := range capabilities {
+			switch strings.ToLower(strings.TrimSpace(capability)) {
+			case "keywords":
+				hasCapability = true
+				if err := requireAccess("retrieval_engine keywords", "document_content", "document_metadata", "query_text"); err != nil {
+					return err
+				}
+			case "vector":
+				hasCapability = true
+				if err := requireAccess("retrieval_engine vector", "document_content", "document_metadata", "embeddings"); err != nil {
+					return err
+				}
+			}
+		}
+		if !hasCapability {
+			return errors.New("retrieval_engine requires keywords or vector capability")
 		}
 	}
 	return nil
