@@ -13,6 +13,7 @@ import (
 	openSearchRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/opensearch"
 	"github.com/Tencent/WeKnora/internal/errors"
 	"github.com/Tencent/WeKnora/internal/logger"
+	pluginRetrieval "github.com/Tencent/WeKnora/internal/plugin/retrieval"
 	"github.com/Tencent/WeKnora/internal/types"
 	secutils "github.com/Tencent/WeKnora/internal/utils"
 	"github.com/go-sql-driver/mysql"   // MySQL driver for database/sql, used by Doris connection test
@@ -34,6 +35,9 @@ func (s *vectorStoreService) TestConnection(
 	engineType types.RetrieverEngineType,
 	config types.ConnectionConfig,
 ) (string, error) {
+	if handled, err := pluginRetrieval.TestConnection(ctx, engineType, config); handled {
+		return "", err
+	}
 	switch engineType {
 	case types.ElasticsearchRetrieverEngineType:
 		return testElasticsearchConnection(ctx, config)

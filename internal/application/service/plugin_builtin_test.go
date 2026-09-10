@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuiltinPluginsIncludeAllFourCapabilityFamilies(t *testing.T) {
+func TestBuiltinPluginsIncludeAllFiveCapabilityFamilies(t *testing.T) {
 	connectors := datasource.NewConnectorRegistry()
 	require.NoError(t, connectors.Register(&builtinCatalogConnector{}))
 	searches := infrawebsearch.NewRegistry()
@@ -38,6 +38,7 @@ func TestBuiltinPluginsIncludeAllFourCapabilityFamilies(t *testing.T) {
 	assert.True(t, families["document_parser"])
 	assert.True(t, families["web_search"])
 	assert.True(t, families["model_provider"])
+	assert.True(t, families["retrieval_engine"])
 }
 
 type builtinCatalogConnector struct{}

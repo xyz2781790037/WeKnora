@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tencent/WeKnora/internal/errors"
 	"github.com/Tencent/WeKnora/internal/logger"
+	pluginRetrieval "github.com/Tencent/WeKnora/internal/plugin/retrieval"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	secutils "github.com/Tencent/WeKnora/internal/utils"
@@ -57,16 +58,21 @@ func (s *vectorStoreService) CreateStore(ctx context.Context, store *types.Vecto
 		return err
 	}
 
-	// 2. Engine-specific connection config validation
-	if err := validateConnectionConfig(store.EngineType, store.ConnectionConfig); err != nil {
-		return err
-	}
-
-	// 2.1. SSRF validation on user-supplied addresses (whitelist-first).
-	// Placed before any network I/O (step 5 TestConnection, step 7 registry
-	// factory) so a blocked address never triggers an outbound connection.
-	if err := validateConnectionAddrSSRF(store.EngineType, store.ConnectionConfig); err != nil {
-		return err
+	// 2. Engine-specific connection config validation. External retrieval
+	// plugins use their manifest schema and runtime network policy; built-in
+	// drivers retain the host-side address validation below.
+	externalRetrieval := pluginRetrieval.IsRegistered(store.EngineType)
+	if externalRetrieval {
+		if err := pluginRetrieval.PrepareConfig(store.EngineType, &store.ConnectionConfig); err != nil {
+			return errors.NewValidationError(err.Error())
+		}
+	} else {
+		if err := validateConnectionConfig(store.EngineType, store.ConnectionConfig); err != nil {
+			return err
+		}
+		if err := validateConnectionAddrSSRF(store.EngineType, store.ConnectionConfig); err != nil {
+			return err
+		}
 	}
 
 	// 2.5. Index config validation (bounds, name characters)
@@ -82,28 +88,28 @@ func (s *vectorStoreService) CreateStore(ctx context.Context, store *types.Vecto
 		}
 	}
 
-	// 3. Duplicate check — DB stores
-	endpoint := store.ConnectionConfig.GetEndpoint()
-	indexName := store.IndexConfig.GetIndexNameOrDefault(store.EngineType)
+	// 3–4. Built-in drivers use endpoint/index duplicate detection. External
+	// plugins own their backend namespace semantics, and some valid plugins
+	// (for example an isolated in-memory engine) have no endpoint at all.
+	if !externalRetrieval {
+		endpoint := store.ConnectionConfig.GetEndpoint()
+		indexName := store.IndexConfig.GetIndexNameOrDefault(store.EngineType)
 
-	exists, err := s.repo.ExistsByEndpointAndIndex(ctx, store.TenantID, store.EngineType, endpoint, indexName)
-	if err != nil {
-		return errors.NewInternalServerError("failed to check for duplicates")
-	}
-	if exists {
-		return errors.NewConflictError("a vector store with the same endpoint and index already exists")
-	}
+		exists, err := s.repo.ExistsByEndpointAndIndex(ctx, store.TenantID, store.EngineType, endpoint, indexName)
+		if err != nil {
+			return errors.NewInternalServerError("failed to check for duplicates")
+		}
+		if exists {
+			return errors.NewConflictError("a vector store with the same endpoint and index already exists")
+		}
 
-	// 4. Duplicate check — env stores. We re-derive on each create because
-	// CreateStore is a low-frequency admin action; consistency with the
-	// startup-cached envStores is enforced by RETRIEVE_DRIVER being read
-	// only at process start.
-	for _, envStore := range s.envStores {
-		if envStore.EngineType == store.EngineType &&
-			envStore.ConnectionConfig.GetEndpoint() == endpoint &&
-			envStore.IndexConfig.GetIndexNameOrDefault(store.EngineType) == indexName {
-			return errors.NewConflictError(
-				"a vector store with the same endpoint and index is already configured via environment variables")
+		for _, envStore := range s.envStores {
+			if envStore.EngineType == store.EngineType &&
+				envStore.ConnectionConfig.GetEndpoint() == endpoint &&
+				envStore.IndexConfig.GetIndexNameOrDefault(store.EngineType) == indexName {
+				return errors.NewConflictError(
+					"a vector store with the same endpoint and index is already configured via environment variables")
+			}
 		}
 	}
 
@@ -559,6 +565,12 @@ func (s *vectorStoreService) TestRawConnection(
 	if !types.IsValidEngineType(engineType) {
 		return "", errors.NewValidationError(
 			fmt.Sprintf("connection test is not supported for engine type: %s", engineType))
+	}
+	if pluginRetrieval.IsRegistered(engineType) {
+		if err := pluginRetrieval.PrepareConfig(engineType, &config); err != nil {
+			return "", errors.NewValidationError(err.Error())
+		}
+		return s.TestConnection(ctx, engineType, config)
 	}
 	// 2. Required fields. Prevents an empty field from falling through to a
 	//    driver's internal default (e.g. milvus empty addr -> localhost:19530),

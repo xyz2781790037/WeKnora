@@ -28,6 +28,7 @@ type Gateway interface {
 	Parser() (pluginv1.DocumentParserPluginClient, error)
 	Search() (pluginv1.WebSearchPluginClient, error)
 	Model() (pluginv1.ModelProviderPluginClient, error)
+	Retrieval() (pluginv1.RetrievalEnginePluginClient, error)
 }
 
 // Client exposes generated capability clients while keeping connection and
@@ -41,6 +42,7 @@ type Client struct {
 	parser     pluginv1.DocumentParserPluginClient
 	search     pluginv1.WebSearchPluginClient
 	model      pluginv1.ModelProviderPluginClient
+	retrieval  pluginv1.RetrievalEnginePluginClient
 }
 
 // New creates a lazy gRPC channel. It does not require plugin-runtime to be
@@ -81,6 +83,7 @@ func New(cfg *config.Config) (*Client, error) {
 		parser:     pluginv1.NewDocumentParserPluginClient(conn),
 		search:     pluginv1.NewWebSearchPluginClient(conn),
 		model:      pluginv1.NewModelProviderPluginClient(conn),
+		retrieval:  pluginv1.NewRetrievalEnginePluginClient(conn),
 	}, nil
 }
 
@@ -126,6 +129,13 @@ func (c *Client) Model() (pluginv1.ModelProviderPluginClient, error) {
 		return nil, ErrDisabled
 	}
 	return c.model, nil
+}
+
+func (c *Client) Retrieval() (pluginv1.RetrievalEnginePluginClient, error) {
+	if !c.Enabled() {
+		return nil, ErrDisabled
+	}
+	return c.retrieval, nil
 }
 
 func (c *Client) Close() error {

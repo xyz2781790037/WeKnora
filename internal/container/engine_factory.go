@@ -32,6 +32,7 @@ import (
 	weaviateRepo "github.com/Tencent/WeKnora/internal/application/repository/retriever/weaviate"
 	"github.com/Tencent/WeKnora/internal/application/service/retriever"
 	"github.com/Tencent/WeKnora/internal/config"
+	pluginRetrieval "github.com/Tencent/WeKnora/internal/plugin/retrieval"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/Tencent/WeKnora/internal/utils"
@@ -60,6 +61,12 @@ func createEngineServiceFromStore(
 	cfg *config.Config,
 	auditSink openSearchRepo.AuditSink,
 ) (interfaces.RetrieveEngineService, error) {
+	if repository, handled, err := pluginRetrieval.NewRepository(store); handled {
+		if err != nil {
+			return nil, fmt.Errorf("create retrieval plugin engine: %w", err)
+		}
+		return retriever.NewKVHybridRetrieveEngine(repository, store.EngineType), nil
+	}
 	if err := validateRuntimeVectorStoreAddresses(store); err != nil {
 		return nil, err
 	}

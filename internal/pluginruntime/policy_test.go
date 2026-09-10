@@ -87,15 +87,17 @@ func TestManifestHasDataAccessRequiresEveryDeclaredInput(t *testing.T) {
 	item := &installation{Manifest: validRuntimeManifest()}
 	item.Manifest.Permissions.DataAccess = []pluginv1.DataAccess{
 		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_CONTENT,
+		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA,
 	}
 
 	missing, ok := manifestHasDataAccess(
 		item,
 		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_CONTENT,
 		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA,
+		pluginv1.DataAccess_DATA_ACCESS_EMBEDDINGS,
 	)
 	assert.False(t, ok)
-	assert.Equal(t, pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA, missing)
+	assert.Equal(t, pluginv1.DataAccess_DATA_ACCESS_EMBEDDINGS, missing)
 }
 
 func TestBeginCapabilityCallEnforcesConcurrencyAndRate(t *testing.T) {

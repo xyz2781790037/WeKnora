@@ -77,6 +77,18 @@ func (r *pluginRepository) CountDataSourcesByConnectorType(
 	return count, err
 }
 
+func (r *pluginRepository) CountVectorStoresByEngineType(
+	ctx context.Context,
+	engineType types.RetrieverEngineType,
+) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&types.VectorStore{}).
+		Where("engine_type = ?", engineType).
+		Count(&count).Error
+	return count, err
+}
+
 func (r *pluginRepository) Update(ctx context.Context, plugin *types.Plugin) error {
 	return r.db.WithContext(ctx).
 		Model(&types.Plugin{}).

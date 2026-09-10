@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -35,7 +36,7 @@ const (
 
 var (
 	ErrPluginNotFound = errors.New("plugin not found")
-	ErrPluginInUse    = errors.New("plugin is used by data sources")
+	ErrPluginInUse    = errors.New("plugin is still in use")
 )
 
 // PluginInstallInput is shared by install and upgrade operations. ManifestYAML
@@ -421,6 +422,20 @@ func (s *PluginService) Uninstall(ctx context.Context, id, actorUserID string) e
 			return fmt.Errorf("%w: %d data source instance(s) still use %s", ErrPluginInUse, count, plugin.ConnectorType)
 		}
 	}
+	manifest, manifestErr := decodeInstalledManifest(plugin)
+	if manifestErr != nil {
+		return fmt.Errorf("decode installed plugin manifest: %w", manifestErr)
+	}
+	if slices.Contains(manifest.NormalizedTypes(), "retrieval_engine") {
+		engineType := types.RetrieverEngineType(manifest.Spec.RetrieverEngineType)
+		count, countErr := s.repo.CountVectorStoresByEngineType(ctx, engineType)
+		if countErr != nil {
+			return fmt.Errorf("check retrieval plugin usage: %w", countErr)
+		}
+		if count > 0 {
+			return fmt.Errorf("%w: %d vector store instance(s) still use %s", ErrPluginInUse, count, engineType)
+		}
+	}
 	runtimeAPI, err := s.runtime.Runtime()
 	if err != nil {
 		return err
@@ -670,6 +685,19 @@ func (s *PluginService) builtinPlugins() []*types.Plugin {
 			map[string]any{"provider": provider.Name, "model_types": provider.ModelTypes},
 		))
 	}
+	for _, engine := range types.GetVectorStoreTypes() {
+		if engine.External {
+			continue
+		}
+		result = append(result, s.builtinPlugin(
+			"retrieval_engine",
+			engine.Type,
+			engine.DisplayName,
+			"WeKnora 内置检索引擎",
+			[]string{"keywords", "vector"},
+			map[string]any{"retriever_engine_type": engine.Type},
+		))
+	}
 	return result
 }
 
@@ -697,6 +725,20 @@ func (s *PluginService) builtinPlugin(
 		HealthMessage:      "managed by WeKnora",
 		CallTimeoutSeconds: 0,
 	}
+}
+
+func decodeInstalledManifest(plugin *types.Plugin) (*pluginsdk.Manifest, error) {
+	if plugin == nil {
+		return nil, errors.New("plugin is required")
+	}
+	var manifest pluginsdk.Manifest
+	if err := json.Unmarshal(plugin.Manifest, &manifest); err != nil {
+		return nil, err
+	}
+	if err := manifest.Validate(); err != nil {
+		return nil, err
+	}
+	return &manifest, nil
 }
 
 func builtinDisplayName(value string) string {

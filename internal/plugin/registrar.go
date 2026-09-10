@@ -20,6 +20,7 @@ import (
 	pluginDatasource "github.com/Tencent/WeKnora/internal/plugin/datasource"
 	pluginModel "github.com/Tencent/WeKnora/internal/plugin/model"
 	pluginParser "github.com/Tencent/WeKnora/internal/plugin/parser"
+	pluginRetrieval "github.com/Tencent/WeKnora/internal/plugin/retrieval"
 	"github.com/Tencent/WeKnora/internal/plugin/runtimeclient"
 	pluginSearch "github.com/Tencent/WeKnora/internal/plugin/search"
 	"github.com/Tencent/WeKnora/internal/types"
@@ -40,6 +41,7 @@ type Registrar struct {
 	webSearchOwnership map[string]string
 	parserOwnership    map[string]string
 	modelOwnership     map[string]string
+	retrievalOwnership map[string]string
 }
 
 func NewRegistrar(
@@ -57,6 +59,7 @@ func NewRegistrar(
 		webSearchOwnership: make(map[string]string),
 		parserOwnership:    make(map[string]string),
 		modelOwnership:     make(map[string]string),
+		retrievalOwnership: make(map[string]string),
 	}
 }
 
@@ -88,6 +91,15 @@ func (r *Registrar) Register(plugin *types.Plugin) error {
 	}
 	if containsType(manifest.NormalizedTypes(), "model_provider") {
 		if err := r.registerModelProvider(plugin, manifest); err != nil {
+			r.unregisterParser(plugin)
+			r.unregisterWebSearch(plugin)
+			r.unregisterDataSource(plugin)
+			return err
+		}
+	}
+	if containsType(manifest.NormalizedTypes(), "retrieval_engine") {
+		if err := r.registerRetrievalEngine(plugin, manifest); err != nil {
+			r.unregisterModelProvider(plugin)
 			r.unregisterParser(plugin)
 			r.unregisterWebSearch(plugin)
 			r.unregisterDataSource(plugin)
@@ -215,6 +227,40 @@ func (r *Registrar) registerModelProvider(plugin *types.Plugin, manifest *plugin
 	return nil
 }
 
+func (r *Registrar) registerRetrievalEngine(plugin *types.Plugin, manifest *pluginsdk.Manifest) error {
+	engineType := types.RetrieverEngineType(strings.TrimSpace(manifest.Spec.RetrieverEngineType))
+	fields, err := vectorStoreFieldsFromSchema(manifest.Spec.Config.Schema, manifest.Spec.Config.SecretFields)
+	if err != nil {
+		return fmt.Errorf("retrieval engine config schema: %w", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	owner := r.retrievalOwnership[string(engineType)]
+	if owner != "" && owner != plugin.ID {
+		return fmt.Errorf("retrieval engine type %s is already registered by plugin %s", engineType, owner)
+	}
+	if err := pluginRetrieval.Register(
+		plugin.ID,
+		engineType,
+		r.runtime,
+		manifest.Spec.Capabilities,
+		cloneSchema(manifest.Spec.Config.Schema),
+		manifest.Spec.Config.SecretFields,
+	); err != nil {
+		return err
+	}
+	metadata := types.VectorStoreTypeInfo{
+		Type: string(engineType), DisplayName: manifest.Metadata.Name,
+		ConnectionFields: fields, External: true, PluginID: plugin.ID,
+	}
+	if err := types.RegisterExternalVectorStoreType(metadata); err != nil {
+		pluginRetrieval.Unregister(engineType, plugin.ID)
+		return err
+	}
+	r.retrievalOwnership[string(engineType)] = plugin.ID
+	return nil
+}
+
 func (r *Registrar) Unregister(plugin *types.Plugin) {
 	if plugin == nil {
 		return
@@ -223,6 +269,29 @@ func (r *Registrar) Unregister(plugin *types.Plugin) {
 	r.unregisterWebSearch(plugin)
 	r.unregisterParser(plugin)
 	r.unregisterModelProvider(plugin)
+	r.unregisterRetrievalEngine(plugin)
+}
+
+func (r *Registrar) unregisterRetrievalEngine(plugin *types.Plugin) {
+	if plugin == nil {
+		return
+	}
+	manifest, err := decodeManifest(plugin.Manifest)
+	if err != nil {
+		return
+	}
+	engineType := types.RetrieverEngineType(strings.TrimSpace(manifest.Spec.RetrieverEngineType))
+	if engineType == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.retrievalOwnership[string(engineType)] != plugin.ID {
+		return
+	}
+	types.UnregisterExternalVectorStoreType(engineType, plugin.ID)
+	pluginRetrieval.Unregister(engineType, plugin.ID)
+	delete(r.retrievalOwnership, string(engineType))
 }
 
 func (r *Registrar) unregisterDataSource(plugin *types.Plugin) {
@@ -513,4 +582,61 @@ func modelProviderMetadata(manifest *pluginsdk.Manifest) modelprovider.ProviderI
 	}
 	sort.Slice(info.ExtraFields, func(i, j int) bool { return info.ExtraFields[i].Key < info.ExtraFields[j].Key })
 	return info
+}
+
+func vectorStoreFieldsFromSchema(schema map[string]any, secretFields []string) ([]types.VectorStoreFieldInfo, error) {
+	properties, _ := schema["properties"].(map[string]any)
+	required := schemaRequiredFields(schema["required"])
+	secrets := make(map[string]bool, len(secretFields))
+	for _, field := range secretFields {
+		secrets[field] = true
+	}
+	fields := make([]types.VectorStoreFieldInfo, 0, len(properties))
+	for name, raw := range properties {
+		property, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("property %s must be an object", name)
+		}
+		fieldType := stringValue(property["type"], "string")
+		switch fieldType {
+		case "integer", "number":
+			fieldType = "number"
+		case "string", "boolean", "array":
+		default:
+			return nil, fmt.Errorf("property %s uses unsupported type %s", name, fieldType)
+		}
+		field := types.VectorStoreFieldInfo{
+			Name: name, Type: fieldType, Required: required[name], Sensitive: secrets[name],
+			Default: property["default"], Description: stringValue(property["description"], ""),
+		}
+		if minimum, ok := numberValue(property["minimum"]); ok {
+			field.Min = &minimum
+		}
+		if maximum, ok := numberValue(property["maximum"]); ok {
+			field.Max = &maximum
+		}
+		if enumValues, ok := property["enum"].([]any); ok {
+			for _, value := range enumValues {
+				field.Enum = append(field.Enum, fmt.Sprint(value))
+			}
+		}
+		fields = append(fields, field)
+	}
+	sort.Slice(fields, func(i, j int) bool { return fields[i].Name < fields[j].Name })
+	return fields, nil
+}
+
+func numberValue(value any) (float64, bool) {
+	switch number := value.(type) {
+	case float64:
+		return number, true
+	case float32:
+		return float64(number), true
+	case int:
+		return float64(number), true
+	case int64:
+		return float64(number), true
+	default:
+		return 0, false
+	}
 }

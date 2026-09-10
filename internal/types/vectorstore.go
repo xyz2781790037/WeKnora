@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Tencent/WeKnora/internal/errors"
@@ -94,9 +96,20 @@ var validEngineTypes = map[RetrieverEngineType]bool{
 	OpenSearchRetrieverEngineType:      true,
 }
 
+var externalVectorStoreTypes = struct {
+	sync.RWMutex
+	items map[RetrieverEngineType]VectorStoreTypeInfo
+}{items: make(map[RetrieverEngineType]VectorStoreTypeInfo)}
+
 // IsValidEngineType checks whether the given engine type is valid for VectorStore.
 func IsValidEngineType(t RetrieverEngineType) bool {
-	return validEngineTypes[t]
+	if validEngineTypes[t] {
+		return true
+	}
+	externalVectorStoreTypes.RLock()
+	_, exists := externalVectorStoreTypes.items[t]
+	externalVectorStoreTypes.RUnlock()
+	return exists
 }
 
 // Validate checks required fields and engine type validity.
@@ -104,7 +117,7 @@ func (v *VectorStore) Validate() error {
 	if v.Name == "" {
 		return errors.NewValidationError("name is required")
 	}
-	if !validEngineTypes[v.EngineType] {
+	if !IsValidEngineType(v.EngineType) {
 		return errors.NewValidationError(fmt.Sprintf("unsupported engine type: %s", v.EngineType))
 	}
 	if v.TenantID == 0 {
@@ -154,6 +167,12 @@ type ConnectionConfig struct {
 	// Version is the detected server version (e.g., "7.10.1", "16.2", "1.12.6").
 	// Auto-populated by TestConnection on successful connectivity check.
 	Version string `yaml:"version" json:"version,omitempty"`
+	// PluginConfig and PluginCredentials hold schema-defined configuration for
+	// external retrieval-engine plugins. Credentials are separated so they can
+	// be encrypted at rest and masked in API responses without hiding ordinary
+	// operator-facing settings.
+	PluginConfig      map[string]any    `yaml:"plugin_config" json:"plugin_config,omitempty"`
+	PluginCredentials map[string]string `yaml:"plugin_credentials" json:"plugin_credentials,omitempty"`
 }
 
 // Value implements the driver.Valuer interface.
@@ -169,6 +188,18 @@ func (c ConnectionConfig) Value() (driver.Value, error) {
 			if encrypted, err := utils.EncryptAESGCM(c.APIKey, key); err == nil {
 				c.APIKey = encrypted
 			}
+		}
+		if len(c.PluginCredentials) > 0 {
+			credentials := make(map[string]string, len(c.PluginCredentials))
+			for field, value := range c.PluginCredentials {
+				credentials[field] = value
+				if value != "" {
+					if encrypted, err := utils.EncryptAESGCM(value, key); err == nil {
+						credentials[field] = encrypted
+					}
+				}
+			}
+			c.PluginCredentials = credentials
 		}
 	}
 	return json.Marshal(c)
@@ -197,6 +228,13 @@ func (c *ConnectionConfig) Scan(value interface{}) error {
 		return fmt.Errorf("decrypt vector store connection api_key: %w", err)
 	}
 	c.APIKey = apiKey
+	for field, stored := range c.PluginCredentials {
+		plain, err := utils.DecryptStoredSecret(stored)
+		if err != nil {
+			return fmt.Errorf("decrypt retrieval plugin credential %s: %w", field, err)
+		}
+		c.PluginCredentials[field] = plain
+	}
 	return nil
 }
 
@@ -231,6 +269,14 @@ func (c ConnectionConfig) MaskSensitiveFields() ConnectionConfig {
 	}
 	if masked.APIKey != "" {
 		masked.APIKey = RedactedSecretPlaceholder
+	}
+	if len(masked.PluginCredentials) > 0 {
+		masked.PluginCredentials = make(map[string]string, len(c.PluginCredentials))
+		for field, value := range c.PluginCredentials {
+			if value != "" {
+				masked.PluginCredentials[field] = RedactedSecretPlaceholder
+			}
+		}
 	}
 	return masked
 }
@@ -613,6 +659,48 @@ type VectorStoreTypeInfo struct {
 	DisplayName      string                 `json:"display_name"`
 	ConnectionFields []VectorStoreFieldInfo `json:"connection_fields"`
 	IndexFields      []VectorStoreFieldInfo `json:"index_fields,omitempty"`
+	External         bool                   `json:"external,omitempty"`
+	PluginID         string                 `json:"plugin_id,omitempty"`
+}
+
+// RegisterExternalVectorStoreType exposes one enabled retrieval-engine plugin
+// to validation and the vector-store settings API. Built-in engine names are
+// reserved and cannot be replaced by plugins.
+func RegisterExternalVectorStoreType(info VectorStoreTypeInfo) error {
+	engineType := RetrieverEngineType(strings.TrimSpace(info.Type))
+	if engineType == "" || strings.TrimSpace(info.PluginID) == "" {
+		return fmt.Errorf("external vector store type and plugin id are required")
+	}
+	if validEngineTypes[engineType] {
+		return fmt.Errorf("external vector store type %s conflicts with a built-in engine", engineType)
+	}
+	info.Type = string(engineType)
+	info.External = true
+	info.ConnectionFields = cloneVectorStoreFields(info.ConnectionFields)
+	info.IndexFields = cloneVectorStoreFields(info.IndexFields)
+	externalVectorStoreTypes.Lock()
+	defer externalVectorStoreTypes.Unlock()
+	if current, exists := externalVectorStoreTypes.items[engineType]; exists && current.PluginID != info.PluginID {
+		return fmt.Errorf("external vector store type %s is already registered by plugin %s", engineType, current.PluginID)
+	}
+	externalVectorStoreTypes.items[engineType] = info
+	return nil
+}
+
+func UnregisterExternalVectorStoreType(engineType RetrieverEngineType, pluginID string) {
+	externalVectorStoreTypes.Lock()
+	defer externalVectorStoreTypes.Unlock()
+	if current, exists := externalVectorStoreTypes.items[engineType]; exists && current.PluginID == pluginID {
+		delete(externalVectorStoreTypes.items, engineType)
+	}
+}
+
+func cloneVectorStoreFields(fields []VectorStoreFieldInfo) []VectorStoreFieldInfo {
+	result := append([]VectorStoreFieldInfo(nil), fields...)
+	for index := range result {
+		result[index].Enum = append([]string(nil), result[index].Enum...)
+	}
+	return result
 }
 
 func resolveTencentVectorDBReplicaNumber(lookup EnvLookupFunc) int {
@@ -637,7 +725,7 @@ func resolveTencentVectorDBReplicaNumber(lookup EnvLookupFunc) int {
 // (defense-in-depth validation in the service layer).
 type VectorStoreFieldInfo struct {
 	Name        string `json:"name"`
-	Type        string `json:"type"` // "string", "number", "boolean"
+	Type        string `json:"type"` // "string", "number", "boolean", "array"
 	Required    bool   `json:"required"`
 	Sensitive   bool   `json:"sensitive,omitempty"`
 	Default     any    `json:"default,omitempty"`
@@ -666,7 +754,7 @@ type VectorStoreFieldInfo struct {
 func GetVectorStoreTypes() []VectorStoreTypeInfo {
 	tencentVectorDBReplicaNumber := resolveTencentVectorDBReplicaNumber(os.Getenv)
 
-	return []VectorStoreTypeInfo{
+	result := []VectorStoreTypeInfo{
 		{
 			Type:        "elasticsearch",
 			DisplayName: "Elasticsearch",
@@ -781,6 +869,19 @@ func GetVectorStoreTypes() []VectorStoreTypeInfo {
 			},
 		},
 	}
+	external := make([]VectorStoreTypeInfo, 0)
+	externalVectorStoreTypes.RLock()
+	for _, info := range externalVectorStoreTypes.items {
+		info.ConnectionFields = cloneVectorStoreFields(info.ConnectionFields)
+		info.IndexFields = cloneVectorStoreFields(info.IndexFields)
+		external = append(external, info)
+	}
+	externalVectorStoreTypes.RUnlock()
+	sort.Slice(external, func(i, j int) bool {
+		return external[i].DisplayName < external[j].DisplayName
+	})
+	result = append(result, external...)
+	return result
 }
 
 // floatPtr returns a pointer to v, for setting VectorStoreFieldInfo Min/Max.

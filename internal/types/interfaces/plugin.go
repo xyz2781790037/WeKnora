@@ -16,6 +16,7 @@ type PluginRepository interface {
 	ListEnabled(ctx context.Context) ([]*types.Plugin, error)
 	FindByConnectorType(ctx context.Context, connectorType string) (*types.Plugin, error)
 	CountDataSourcesByConnectorType(ctx context.Context, connectorType string) (int64, error)
+	CountVectorStoresByEngineType(ctx context.Context, engineType types.RetrieverEngineType) (int64, error)
 	Update(ctx context.Context, plugin *types.Plugin) error
 	UpdateRuntimeState(
 		ctx context.Context,

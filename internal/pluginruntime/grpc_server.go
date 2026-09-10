@@ -24,6 +24,7 @@ type GRPCServer struct {
 	pluginv1.UnimplementedDocumentParserPluginServer
 	pluginv1.UnimplementedWebSearchPluginServer
 	pluginv1.UnimplementedModelProviderPluginServer
+	pluginv1.UnimplementedRetrievalEnginePluginServer
 
 	manager *Manager
 	events  *eventBus
@@ -40,6 +41,7 @@ func (s *GRPCServer) Register(server *grpc.Server) {
 	pluginv1.RegisterDocumentParserPluginServer(server, s)
 	pluginv1.RegisterWebSearchPluginServer(server, s)
 	pluginv1.RegisterModelProviderPluginServer(server, s)
+	pluginv1.RegisterRetrievalEnginePluginServer(server, s)
 }
 
 func (s *GRPCServer) Install(
@@ -457,6 +459,143 @@ func (s *GRPCServer) Rerank(
 	return response, err
 }
 
+func (s *GRPCServer) Upsert(
+	ctx context.Context,
+	req *pluginv1.RetrievalUpsertRequest,
+) (*emptypb.Empty, error) {
+	required := []pluginv1.DataAccess{
+		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_CONTENT,
+		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA,
+	}
+	for _, document := range req.GetDocuments() {
+		if len(document.GetEmbedding()) > 0 {
+			required = append(required, pluginv1.DataAccess_DATA_ACCESS_EMBEDDINGS)
+			break
+		}
+	}
+	return s.forwardRetrievalEmpty(ctx, req.GetContext(), "Upsert", required, func(callCtx context.Context, connection *grpc.ClientConn) (*emptypb.Empty, error) {
+		return pluginv1.NewRetrievalEnginePluginClient(connection).Upsert(callCtx, req)
+	})
+}
+
+func (s *GRPCServer) Retrieve(
+	ctx context.Context,
+	req *pluginv1.RetrievalRequest,
+) (*pluginv1.RetrievalResponse, error) {
+	startedAt := time.Now()
+	connection, item, err := s.target(req.GetContext())
+	if err != nil {
+		return nil, mapRuntimeError(err)
+	}
+	required := []pluginv1.DataAccess{pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA}
+	switch req.GetRetrieverType() {
+	case pluginv1.PluginRetrieverType_PLUGIN_RETRIEVER_TYPE_KEYWORDS:
+		required = append(required, pluginv1.DataAccess_DATA_ACCESS_QUERY_TEXT)
+	case pluginv1.PluginRetrieverType_PLUGIN_RETRIEVER_TYPE_VECTOR:
+		required = append(required, pluginv1.DataAccess_DATA_ACCESS_EMBEDDINGS)
+	default:
+		return nil, status.Error(codes.InvalidArgument, "retriever_type must be keywords or vector")
+	}
+	release, err := s.authorizeCapability(item, req.GetContext(), "retrieval_engine", "Retrieve", required...)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	callCtx, cancel := withPluginTimeout(ctx, item)
+	defer cancel()
+	response, err := pluginv1.NewRetrievalEnginePluginClient(connection).Retrieve(callCtx, req)
+	s.publishCall(req.GetContext(), "retrieval_engine", "Retrieve", startedAt, err)
+	return response, err
+}
+
+func (s *GRPCServer) EstimateStorage(
+	ctx context.Context,
+	req *pluginv1.RetrievalEstimateStorageRequest,
+) (*pluginv1.RetrievalEstimateStorageResponse, error) {
+	startedAt := time.Now()
+	connection, item, err := s.target(req.GetContext())
+	if err != nil {
+		return nil, mapRuntimeError(err)
+	}
+	required := []pluginv1.DataAccess{
+		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_CONTENT,
+		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA,
+	}
+	for _, document := range req.GetDocuments() {
+		if len(document.GetEmbedding()) > 0 {
+			required = append(required, pluginv1.DataAccess_DATA_ACCESS_EMBEDDINGS)
+			break
+		}
+	}
+	release, err := s.authorizeCapability(item, req.GetContext(), "retrieval_engine", "EstimateStorage", required...)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	callCtx, cancel := withPluginTimeout(ctx, item)
+	defer cancel()
+	response, err := pluginv1.NewRetrievalEnginePluginClient(connection).EstimateStorage(callCtx, req)
+	s.publishCall(req.GetContext(), "retrieval_engine", "EstimateStorage", startedAt, err)
+	return response, err
+}
+
+func (s *GRPCServer) Delete(
+	ctx context.Context,
+	req *pluginv1.RetrievalDeleteRequest,
+) (*emptypb.Empty, error) {
+	return s.forwardRetrievalEmpty(ctx, req.GetContext(), "Delete", []pluginv1.DataAccess{
+		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA,
+	}, func(callCtx context.Context, connection *grpc.ClientConn) (*emptypb.Empty, error) {
+		return pluginv1.NewRetrievalEnginePluginClient(connection).Delete(callCtx, req)
+	})
+}
+
+func (s *GRPCServer) Copy(
+	ctx context.Context,
+	req *pluginv1.RetrievalCopyRequest,
+) (*emptypb.Empty, error) {
+	return s.forwardRetrievalEmpty(ctx, req.GetContext(), "Copy", []pluginv1.DataAccess{
+		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA,
+	}, func(callCtx context.Context, connection *grpc.ClientConn) (*emptypb.Empty, error) {
+		return pluginv1.NewRetrievalEnginePluginClient(connection).Copy(callCtx, req)
+	})
+}
+
+func (s *GRPCServer) UpdateChunks(
+	ctx context.Context,
+	req *pluginv1.RetrievalUpdateChunksRequest,
+) (*emptypb.Empty, error) {
+	return s.forwardRetrievalEmpty(ctx, req.GetContext(), "UpdateChunks", []pluginv1.DataAccess{
+		pluginv1.DataAccess_DATA_ACCESS_DOCUMENT_METADATA,
+	}, func(callCtx context.Context, connection *grpc.ClientConn) (*emptypb.Empty, error) {
+		return pluginv1.NewRetrievalEnginePluginClient(connection).UpdateChunks(callCtx, req)
+	})
+}
+
+func (s *GRPCServer) forwardRetrievalEmpty(
+	ctx context.Context,
+	invocation *pluginv1.InvocationContext,
+	method string,
+	required []pluginv1.DataAccess,
+	call func(context.Context, *grpc.ClientConn) (*emptypb.Empty, error),
+) (*emptypb.Empty, error) {
+	startedAt := time.Now()
+	connection, item, err := s.target(invocation)
+	if err != nil {
+		return nil, mapRuntimeError(err)
+	}
+	release, err := s.authorizeCapability(item, invocation, "retrieval_engine", method, required...)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	callCtx, cancel := withPluginTimeout(ctx, item)
+	defer cancel()
+	response, err := call(callCtx, connection)
+	s.publishCall(invocation, "retrieval_engine", method, startedAt, err)
+	return response, err
+}
+
 func (s *GRPCServer) publishCall(
 	invocation *pluginv1.InvocationContext,
 	capability string,
@@ -520,6 +659,8 @@ func dataAccessName(value pluginv1.DataAccess) string {
 		return "query_text"
 	case pluginv1.DataAccess_DATA_ACCESS_CONVERSATION:
 		return "conversation"
+	case pluginv1.DataAccess_DATA_ACCESS_EMBEDDINGS:
+		return "embeddings"
 	default:
 		return "unspecified"
 	}

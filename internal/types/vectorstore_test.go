@@ -676,6 +676,54 @@ func TestConnectionConfig_MaskSensitiveFields(t *testing.T) {
 	})
 }
 
+func TestConnectionConfig_PluginCredentialsRoundTrip(t *testing.T) {
+	t.Setenv("SYSTEM_AES_KEY", "0123456789abcdef0123456789abcdef")
+	original := ConnectionConfig{
+		PluginConfig:      map[string]any{"endpoint": "https://search.example"},
+		PluginCredentials: map[string]string{"token": "secret-token"},
+	}
+	raw, err := original.Value()
+	require.NoError(t, err)
+	require.NotContains(t, string(raw.([]byte)), "secret-token")
+	var scanned ConnectionConfig
+	require.NoError(t, scanned.Scan(raw.([]byte)))
+	assert.Equal(t, "secret-token", scanned.PluginCredentials["token"])
+	assert.Equal(t, "https://search.example", scanned.PluginConfig["endpoint"])
+	masked := scanned.MaskSensitiveFields()
+	assert.Equal(t, RedactedSecretPlaceholder, masked.PluginCredentials["token"])
+	assert.Equal(t, "secret-token", scanned.PluginCredentials["token"])
+}
+
+func TestExternalVectorStoreTypeLifecycle(t *testing.T) {
+	engineType := RetrieverEngineType("test_external_engine")
+	info := VectorStoreTypeInfo{
+		Type: string(engineType), DisplayName: "Test External", PluginID: "io.example.retrieval",
+		ConnectionFields: []VectorStoreFieldInfo{{Name: "mode", Type: "string", Enum: []string{"fast"}}},
+	}
+	require.NoError(t, RegisterExternalVectorStoreType(info))
+	t.Cleanup(func() { UnregisterExternalVectorStoreType(engineType, "io.example.retrieval") })
+	require.True(t, IsValidEngineType(engineType))
+	types := GetVectorStoreTypes()
+	require.Equal(t, string(ElasticsearchRetrieverEngineType), types[0].Type, "built-in order must stay stable")
+	var found *VectorStoreTypeInfo
+	for index := range types {
+		if types[index].Type == string(engineType) {
+			found = &types[index]
+			break
+		}
+	}
+	require.NotNil(t, found)
+	require.True(t, found.External)
+	require.Equal(t, "io.example.retrieval", found.PluginID)
+	require.Error(t, RegisterExternalVectorStoreType(VectorStoreTypeInfo{
+		Type: string(QdrantRetrieverEngineType), DisplayName: "Conflict", PluginID: "io.example.conflict",
+	}))
+	UnregisterExternalVectorStoreType(engineType, "wrong-owner")
+	require.True(t, IsValidEngineType(engineType))
+	UnregisterExternalVectorStoreType(engineType, "io.example.retrieval")
+	require.False(t, IsValidEngineType(engineType))
+}
+
 // ---------------------------------------------------------------------------
 // IndexConfig
 // ---------------------------------------------------------------------------
