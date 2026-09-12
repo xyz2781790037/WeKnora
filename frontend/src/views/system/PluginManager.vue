@@ -33,6 +33,7 @@ const pluginTypeDefinitions = {
   document_parser: { label: '文档解析', icon: 'file', theme: 'success', className: 'document-parser' },
   web_search: { label: '联网搜索', icon: 'search', theme: 'warning', className: 'web-search' },
   model_provider: { label: '模型供应商', icon: 'chat', theme: 'default', className: 'model-provider' },
+  retrieval_engine: { label: '检索引擎', icon: 'server', theme: 'danger', className: 'retrieval-engine' },
 } as const
 type PluginType = keyof typeof pluginTypeDefinitions
 type PluginTypeFilter = 'all' | PluginType
@@ -44,6 +45,7 @@ const pluginTypeOptions: Array<{ value: PluginTypeFilter; label: string }> = [
   { value: 'document_parser', label: '文档解析' },
   { value: 'web_search', label: '联网搜索' },
   { value: 'model_provider', label: '模型供应商' },
+  { value: 'retrieval_engine', label: '检索引擎' },
 ]
 
 interface PluginDetailView {
@@ -1151,6 +1153,7 @@ watch([manifestSource, manifestURL, manifestYAML], () => {
 .plugin-icon--document-parser { color: var(--td-success-color); background: var(--td-success-color-light); }
 .plugin-icon--web-search { color: var(--td-warning-color); background: var(--td-warning-color-light); }
 .plugin-icon--model-provider { color: #8b5cf6; background: rgb(139 92 246 / 12%); }
+.plugin-icon--retrieval-engine { color: #e34d59; background: rgb(227 77 89 / 12%); }
 .plugin-icon--other { color: var(--td-text-color-secondary); background: var(--td-bg-color-secondarycontainer); }
 .plugin-copy { min-width: 0; flex: 1; }
 .plugin-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

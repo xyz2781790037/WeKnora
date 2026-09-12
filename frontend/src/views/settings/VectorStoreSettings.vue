@@ -193,10 +193,10 @@
             </div>
             <template v-if="selectedType">
               <template v-for="field in selectedType.connection_fields" :key="field.name">
-                <div v-if="field.sensitive || form.connection_config[field.name]" class="readonly-row">
+                <div v-if="field.sensitive || connectionFields[field.name]" class="readonly-row">
                   <span class="readonly-label">{{ fieldLabel(field.name) }}</span>
                   <span class="readonly-value">
-                    {{ field.sensitive ? '********' : form.connection_config[field.name] }}
+                    {{ field.sensitive ? '********' : connectionFields[field.name] }}
                   </span>
                 </div>
               </template>
@@ -253,10 +253,10 @@
               <!-- boolean 字段：switch + 行内描述 / TLS 警告 -->
               <template v-if="field.type === 'boolean'">
                 <div class="vision-toggle">
-                  <t-switch v-model="form.connection_config[field.name]" />
+                  <t-switch v-model="connectionFields[field.name]" />
                 </div>
                 <p
-                  v-if="field.name === 'insecure_skip_verify' && form.connection_config[field.name]"
+                  v-if="field.name === 'insecure_skip_verify' && connectionFields[field.name]"
                   class="form-desc form-desc--warn"
                 >
                   {{ t('vectorStoreSettings.insecureSkipVerifyWarning') }}
@@ -266,7 +266,7 @@
               <!-- 敏感字段（password / api key 等）：lock prefix + password -->
               <t-input
                 v-else-if="field.type === 'string' && field.sensitive"
-                v-model="form.connection_config[field.name]"
+                v-model="connectionFields[field.name]"
                 type="password"
                 placeholder="********"
               >
@@ -282,10 +282,18 @@
                 class="number-input"
               />
 
+              <!-- 字符串数组 -->
+              <t-tag-input
+                v-else-if="field.type === 'array'"
+                v-model="connectionFields[field.name]"
+                clearable
+                :placeholder="field.description || field.name"
+              />
+
               <!-- 普通字符串 -->
               <t-input
                 v-else
-                v-model="form.connection_config[field.name]"
+                v-model="connectionFields[field.name]"
                 :placeholder="field.default?.toString() || ''"
               />
             </div>
@@ -410,6 +418,13 @@ watch(
 const envStores = computed(() => stores.value.filter(s => s.source === 'env'))
 const userStores = computed(() => stores.value.filter(s => s.source === 'user'))
 const selectedType = computed(() => storeTypes.value.find(st => st.type === form.value.engine_type))
+const connectionFields = computed<Record<string, any>>(() => {
+  if (!selectedType.value?.external) return form.value.connection_config
+  const current = form.value.connection_config.plugin_config
+  if (current && typeof current === 'object' && !Array.isArray(current)) return current
+  form.value.connection_config.plugin_config = {}
+  return form.value.connection_config.plugin_config
+})
 
 // Drawer header logo — 与列表 .store-card__badge 同源（providerLogo()），让
 // 列表卡 → 抽屉 hand-off 视觉连贯。
@@ -439,8 +454,8 @@ const canTestConnection = computed(() => {
   if (!st) return false
   for (const f of st.connection_fields) {
     if (!f.required) continue
-    const v = form.value.connection_config[f.name]
-    if (v == null || v === '' || (typeof v === 'string' && v.trim() === '')) return false
+    const v = connectionFields.value[f.name]
+    if (v == null || v === '' || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)) return false
   }
   return true
 })
@@ -465,7 +480,8 @@ const formRules = computed(() => {
     if (selectedType.value) {
       for (const field of selectedType.value.connection_fields) {
         if (field.required) {
-          rules[`connection_config.${field.name}`] = [
+          const prefix = selectedType.value.external ? 'connection_config.plugin_config' : 'connection_config'
+          rules[`${prefix}.${field.name}`] = [
             { required: true, message: t('vectorStoreSettings.validation.fieldRequired', { field: fieldLabel(field.name) }) },
           ]
         }
@@ -577,7 +593,7 @@ function ensureNumberProxy(
 // keys multiplying — wrap in a Proxy so `connectionNumberText[name].value`
 // from the template lazily creates the proxy on first read.
 const connectionNumberTextProxy = new Proxy(connectionNumberText, {
-  get: (target, name: string) => ensureNumberProxy(target, form.value.connection_config, name),
+  get: (target, name: string) => ensureNumberProxy(target, connectionFields.value, name),
 })
 const indexNumberTextProxy = new Proxy(indexNumberText, {
   get: (target, name: string) => ensureNumberProxy(target, form.value.index_config, name),

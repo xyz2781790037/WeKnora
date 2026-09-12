@@ -20,11 +20,13 @@ export interface VectorStoreTypeInfo {
   display_name: string
   connection_fields: FieldSchema[]
   index_fields: FieldSchema[]
+  external?: boolean
+  plugin_id?: string
 }
 
 export interface FieldSchema {
   name: string
-  type: 'string' | 'number' | 'boolean'
+  type: 'string' | 'number' | 'boolean' | 'array'
   required: boolean
   sensitive?: boolean
   description?: string

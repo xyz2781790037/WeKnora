@@ -84,15 +84,26 @@ func newGitHubManifestClient() *http.Client {
 	return newTrustedGitHubClient(githubRawHost, "manifest")
 }
 
-// newTrustedGitHubClient bypasses local fake-IP DNS while preserving the
-// public-address and fixed-host checks required for server-side requests.
+// newTrustedGitHubClient uses the operator-configured HTTPS proxy when one is
+// available. Without a proxy it bypasses local fake-IP DNS through trusted DoH.
+// Both paths keep requests pinned to the expected GitHub host.
 func newTrustedGitHubClient(expectedHost, purpose string) *http.Client {
 	resolver := pluginruntime.NewTrustedHostResolver()
 	transport := &http.Transport{
-		Proxy:               nil,
 		ForceAttemptHTTP2:   true,
 		TLSHandshakeTimeout: 10 * time.Second,
-		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+	}
+	probe := &http.Request{URL: &url.URL{Scheme: "https", Host: expectedHost}}
+	proxyURL, proxyErr := http.ProxyFromEnvironment(probe)
+	switch {
+	case proxyErr != nil:
+		transport.Proxy = func(*http.Request) (*url.URL, error) {
+			return nil, fmt.Errorf("resolve GitHub %s proxy: %w", purpose, proxyErr)
+		}
+	case proxyURL != nil:
+		transport.Proxy = http.ProxyURL(proxyURL)
+	default:
+		transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(address)
 			if err != nil {
 				return nil, fmt.Errorf("invalid GitHub %s address: %w", purpose, err)
@@ -122,7 +133,7 @@ func newTrustedGitHubClient(expectedHost, purpose string) *http.Client {
 				lastErr = dialErr
 			}
 			return nil, fmt.Errorf("connect to GitHub %s host: %w", purpose, lastErr)
-		},
+		}
 	}
 	return &http.Client{
 		Timeout:   15 * time.Second,
