@@ -1,0 +1,15 @@
+version: 1
+student:
+  name: "高翊翔"
+  github_id: "xyz2781790037"
+topic:
+  id: "1"
+  title: "扩展能力插件化框架"
+result:
+  type: code
+  url: "https://github.com/xyz2781790037/WeKnora/tree/rhino-2026-final-1"
+repository:
+  url: "git@github.com:xyz2781790037/WeKnora.git"
+  branch: "feat/plugin-framework"
+  commit: "fd0410e5ef2257fa3b77ebf0e830b8f115948840"
+  tag: "rhino-2026-final-1"
